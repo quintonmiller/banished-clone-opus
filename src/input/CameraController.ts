@@ -1,6 +1,6 @@
 import { Camera } from '../map/Camera';
 import { InputManager } from './InputManager';
-import { CAMERA_PAN_SPEED, EDGE_PAN_MARGIN, ZOOM_SPEED } from '../constants';
+import { CAMERA_PAN_SPEED, ZOOM_SPEED } from '../constants';
 
 export class CameraController {
   private lastMouseX = 0;
@@ -25,13 +25,8 @@ export class CameraController {
     if (this.input.isKeyDown('a') || this.input.isKeyDown('arrowleft')) dx -= speed;
     if (this.input.isKeyDown('d') || this.input.isKeyDown('arrowright')) dx += speed;
 
-    // Edge pan
     const mx = this.input.mouseX;
     const my = this.input.mouseY;
-    if (mx < EDGE_PAN_MARGIN) dx -= speed * 0.7;
-    if (mx > this.camera.screenWidth - EDGE_PAN_MARGIN) dx += speed * 0.7;
-    if (my < EDGE_PAN_MARGIN) dy -= speed * 0.7;
-    if (my > this.camera.screenHeight - EDGE_PAN_MARGIN) dy += speed * 0.7;
 
     // Middle mouse drag
     if (this.input.middleDown) {
