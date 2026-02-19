@@ -42,6 +42,10 @@ export class Game {
   readonly world: World;
   readonly pathfinder: Pathfinder;
 
+  /** Logical (CSS) pixel dimensions — use these for layout, not canvas.width/height */
+  logicalWidth = window.innerWidth;
+  logicalHeight = window.innerHeight;
+
   // Controllers
   private cameraController: CameraController;
   private placementController: PlacementController;
@@ -84,7 +88,7 @@ export class Game {
     mapGen.generate(this.tileMap, this.rng.int(0, 999999));
 
     // Camera and input
-    this.camera = new Camera(canvas.width, canvas.height);
+    this.camera = new Camera(this.logicalWidth, this.logicalHeight);
     const startPos = mapGen.findStartLocation(this.tileMap);
     this.camera.centerOn(startPos.x, startPos.y);
 
@@ -183,9 +187,15 @@ export class Game {
   }
 
   private resizeCanvas(): void {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
-    this.camera?.resize(this.canvas.width, this.canvas.height);
+    const dpr = window.devicePixelRatio || 1;
+    this.logicalWidth = window.innerWidth;
+    this.logicalHeight = window.innerHeight;
+    this.canvas.width = this.logicalWidth * dpr;
+    this.canvas.height = this.logicalHeight * dpr;
+    this.canvas.style.width = this.logicalWidth + 'px';
+    this.canvas.style.height = this.logicalHeight + 'px';
+    this.camera?.resize(this.logicalWidth, this.logicalHeight);
+    this.renderSystem?.setDPR(dpr);
   }
 
   private update(_dt: number): void {

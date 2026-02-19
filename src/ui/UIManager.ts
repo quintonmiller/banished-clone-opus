@@ -35,11 +35,9 @@ export class UIManager {
   }
 
   handleClick(x: number, y: number): boolean {
-    const canvas = this.game.canvas;
-
     // Build menu click
     if (this.buildMenuOpen) {
-      const menuY = canvas.height - BUILD_MENU_HEIGHT;
+      const menuY = this.game.logicalHeight - BUILD_MENU_HEIGHT;
       if (y >= menuY) {
         this.buildMenu.handleClick(x, y - menuY);
         return true;
@@ -53,7 +51,7 @@ export class UIManager {
     }
 
     // Minimap click
-    const mmPos = this.minimap.getPosition(canvas.height, this.buildMenuOpen, BUILD_MENU_HEIGHT);
+    const mmPos = this.minimap.getPosition(this.game.logicalHeight, this.buildMenuOpen, BUILD_MENU_HEIGHT);
     if (x >= mmPos.x && x <= mmPos.x + MINIMAP_SIZE &&
         y >= mmPos.y && y <= mmPos.y + MINIMAP_SIZE) {
       this.minimap.handleClick(x - mmPos.x, y - mmPos.y);
@@ -64,8 +62,7 @@ export class UIManager {
   }
 
   private handleHUDClick(x: number, _y: number): void {
-    const canvas = this.game.canvas;
-    if (x > canvas.width - 200) {
+    if (x > this.game.logicalWidth - 200) {
       const speeds = [1, 2, 5, 10];
       const currentIdx = speeds.indexOf(this.game.state.speed);
       const nextIdx = (currentIdx + 1) % speeds.length;
@@ -90,45 +87,46 @@ export class UIManager {
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const canvas = this.game.canvas;
+    const w = this.game.logicalWidth;
+    const h = this.game.logicalHeight;
 
     // Draw build menu
     if (this.buildMenuOpen) {
-      this.buildMenu.draw(ctx, canvas.width, canvas.height);
+      this.buildMenu.draw(ctx, w, h);
     }
 
     // Draw "B" button hint
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(canvas.width - 100, canvas.height - 30, 90, 25);
+    ctx.fillRect(w - 100, h - 30, 90, 25);
     ctx.fillStyle = '#ffffff';
     ctx.font = '12px monospace';
-    ctx.fillText('[B] Build', canvas.width - 95, canvas.height - 13);
+    ctx.fillText('[B] Build', w - 95, h - 13);
 
     // Draw info panel for selected entity
     if (this.game.state.selectedEntity !== null) {
-      this.infoPanel.draw(ctx, canvas.width, canvas.height);
+      this.infoPanel.draw(ctx, w, h);
     }
 
     // Draw minimap (pass build menu state)
-    this.minimap.draw(ctx, canvas.width, canvas.height, this.buildMenuOpen, BUILD_MENU_HEIGHT);
+    this.minimap.draw(ctx, w, h, this.buildMenuOpen, BUILD_MENU_HEIGHT);
 
     // Draw notifications
     this.drawNotifications(ctx);
 
     // Draw speed indicator on HUD
-    this.drawSpeedControls(ctx, canvas.width);
+    this.drawSpeedControls(ctx, w);
 
     // Draw debug overlay
     if (this.debugOverlay) {
-      this.drawDebugOverlay(ctx, canvas.width, canvas.height);
+      this.drawDebugOverlay(ctx, w, h);
     }
 
     // Draw keyboard hint for debug
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(canvas.width - 100, canvas.height - 56, 90, 22);
+    ctx.fillRect(w - 100, h - 56, 90, 22);
     ctx.fillStyle = '#888';
     ctx.font = '10px monospace';
-    ctx.fillText('[F3] Debug', canvas.width - 95, canvas.height - 40);
+    ctx.fillText('[F3] Debug', w - 95, h - 40);
   }
 
   private drawNotifications(ctx: CanvasRenderingContext2D): void {

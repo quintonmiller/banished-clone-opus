@@ -29,6 +29,7 @@ export class RenderSystem {
   private ctx: CanvasRenderingContext2D;
   private terrainBuffer: HTMLCanvasElement | null = null;
   private terrainDirty = true;
+  private dpr = window.devicePixelRatio || 1;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -36,6 +37,20 @@ export class RenderSystem {
     private tileMap: TileMap,
   ) {
     this.ctx = canvas.getContext('2d')!;
+  }
+
+  setDPR(dpr: number): void {
+    this.dpr = dpr;
+  }
+
+  /** Logical (CSS) pixel width */
+  private get logicalWidth(): number {
+    return this.canvas.width / this.dpr;
+  }
+
+  /** Logical (CSS) pixel height */
+  private get logicalHeight(): number {
+    return this.canvas.height / this.dpr;
   }
 
   invalidateTerrain(): void {
@@ -59,7 +74,9 @@ export class RenderSystem {
     const ctx = this.ctx;
     const cam = this.camera;
 
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Set DPR base transform so all coordinates work in logical (CSS) pixels
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
     ctx.save();
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
@@ -307,9 +324,12 @@ export class RenderSystem {
   drawHUD(state: GameState, resources?: Map<string, number>, weather?: string): void {
     const ctx = this.ctx;
 
+    // Ensure DPR base transform for HUD drawing
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
     // Top bar background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(0, 0, this.canvas.width, HUD_HEIGHT);
+    ctx.fillRect(0, 0, this.logicalWidth, HUD_HEIGHT);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '14px monospace';
@@ -387,17 +407,17 @@ export class RenderSystem {
     // Game over overlay
     if (state.gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
       ctx.fillStyle = '#ff4444';
       ctx.font = '48px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 30);
+      ctx.fillText('GAME OVER', this.logicalWidth / 2, this.logicalHeight / 2 - 30);
       ctx.fillStyle = '#ffffff';
       ctx.font = '20px monospace';
-      ctx.fillText('All citizens have perished.', this.canvas.width / 2, this.canvas.height / 2 + 20);
+      ctx.fillText('All citizens have perished.', this.logicalWidth / 2, this.logicalHeight / 2 + 20);
       ctx.fillText(`Survived ${state.year} years. Deaths: ${state.totalDeaths}. Births: ${state.totalBirths}.`,
-        this.canvas.width / 2, this.canvas.height / 2 + 50);
-      ctx.fillText('Press R to restart', this.canvas.width / 2, this.canvas.height / 2 + 90);
+        this.logicalWidth / 2, this.logicalHeight / 2 + 50);
+      ctx.fillText('Press R to restart', this.logicalWidth / 2, this.logicalHeight / 2 + 90);
       ctx.textAlign = 'left';
     }
   }
