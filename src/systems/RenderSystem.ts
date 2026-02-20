@@ -307,6 +307,8 @@ export class RenderSystem {
     working:     { symbol: 'W',  color: '#cccccc' },
     celebrating: { symbol: '\u266B', color: '#ffdd44' },
     baking:      { symbol: 'K',  color: '#dd8844' },
+    drinking:    { symbol: '\u2615', color: '#cc8844' },
+    serving:     { symbol: 'B',  color: '#cc8844' },
   };
 
   private drawCitizen(

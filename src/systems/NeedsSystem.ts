@@ -21,16 +21,26 @@ import {
   T2_FOOD_DECAY_MULT, T2_ENERGY_DECAY_MULT, T2_SPEED_MULT,
   T3_FOOD_DECAY_MULT, T3_ENERGY_DECAY_MULT, T3_SPEED_MULT,
   MIDSUMMER_HAPPINESS_MULT,
+  WELL_HAPPINESS_RADIUS, WELL_HAPPINESS_PER_TICK,
+  CHAPEL_COMMUNITY_HAPPINESS, BuildingType,
 } from '../constants';
 
 export class NeedsSystem {
   private game: Game;
+  private hasChapel = false;
+  private wellPositions: Array<{ x: number; y: number; radius: number }> = [];
+  private socialBuildingCacheAge = 0;
 
   constructor(game: Game) {
     this.game = game;
   }
 
   update(): void {
+    // Periodically cache social building positions (every 100 ticks)
+    if (this.game.state.tick - this.socialBuildingCacheAge > 100) {
+      this.refreshSocialBuildingCache();
+    }
+
     const world = this.game.world;
     const entities = world.query('citizen', 'needs', 'position');
     const seasonData = SEASON_DATA[this.game.state.subSeason];
@@ -157,6 +167,16 @@ export class NeedsSystem {
         needs.happiness = Math.min(100, needs.happiness + happinessGain);
       }
 
+      // Well proximity happiness
+      if (this.isNearWell(id)) {
+        needs.happiness = Math.min(100, needs.happiness + WELL_HAPPINESS_PER_TICK);
+      }
+
+      // Chapel community happiness
+      if (this.hasChapel) {
+        needs.happiness = Math.min(100, needs.happiness + CHAPEL_COMMUNITY_HAPPINESS);
+      }
+
       // Diet variety bonus/penalty
       if (needs.recentDiet && needs.recentDiet.length >= 3) {
         const uniqueTypes = new Set(needs.recentDiet).size;
@@ -187,6 +207,42 @@ export class NeedsSystem {
     const dx = pos.tileX - bPos.tileX;
     const dy = pos.tileY - bPos.tileY;
     return dx >= -2 && dx <= bw + 1 && dy >= -2 && dy <= bh + 1;
+  }
+
+  /** Refresh the cache of social building positions */
+  private refreshSocialBuildingCache(): void {
+    this.socialBuildingCacheAge = this.game.state.tick;
+    this.wellPositions = [];
+    this.hasChapel = false;
+
+    const buildings = this.game.world.getComponentStore<any>('building');
+    if (!buildings) return;
+
+    for (const [id, bld] of buildings) {
+      if (!bld.completed) continue;
+      if (bld.type === BuildingType.WELL) {
+        const pos = this.game.world.getComponent<any>(id, 'position');
+        if (pos) {
+          this.wellPositions.push({ x: pos.tileX + 1, y: pos.tileY + 1, radius: WELL_HAPPINESS_RADIUS });
+        }
+      } else if (bld.type === BuildingType.CHAPEL) {
+        this.hasChapel = true;
+      }
+    }
+  }
+
+  /** Check if a citizen is near any well */
+  private isNearWell(citizenId: number): boolean {
+    if (this.wellPositions.length === 0) return false;
+    const pos = this.game.world.getComponent<any>(citizenId, 'position');
+    if (!pos) return false;
+
+    for (const well of this.wellPositions) {
+      const dx = pos.tileX - well.x;
+      const dy = pos.tileY - well.y;
+      if (dx * dx + dy * dy <= well.radius * well.radius) return true;
+    }
+    return false;
   }
 
   private killCitizen(id: number): void {

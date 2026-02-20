@@ -8,6 +8,7 @@ import {
   OLD_AGE_DEATH_CHANCE_PER_YEAR, NEWBORN_NEEDS, ADULT_SPAWN_AGE_MIN,
   ADULT_SPAWN_AGE_MAX, FAMILY_CHECK_INTERVAL,
   PREGNANCY_DURATION_TICKS, CONCEPTION_CHANCE_PARTNER, CONCEPTION_CHANCE_NON_PARTNER,
+  CHAPEL_WEDDING_HAPPINESS,
 } from '../constants';
 
 export class PopulationSystem {
@@ -118,6 +119,15 @@ export class PopulationSystem {
         maleFam.partnerId = female.id;
         femaleFam.partnerId = male.id;
         pairedFemales.add(female.id);
+
+        // Chapel wedding happiness boost
+        if (this.hasBuildingType(BuildingType.CHAPEL)) {
+          const maleNeeds = world.getComponent<any>(male.id, 'needs');
+          const femaleNeeds = world.getComponent<any>(female.id, 'needs');
+          if (maleNeeds) maleNeeds.happiness = Math.min(100, maleNeeds.happiness + CHAPEL_WEDDING_HAPPINESS);
+          if (femaleNeeds) femaleNeeds.happiness = Math.min(100, femaleNeeds.happiness + CHAPEL_WEDDING_HAPPINESS);
+          this.game.eventBus.emit('wedding', { maleId: male.id, femaleId: female.id });
+        }
         break;
       }
     }
@@ -514,6 +524,7 @@ export class PopulationSystem {
       [BuildingType.SCHOOL]: Profession.TEACHER,
       [BuildingType.TRADING_POST]: Profession.TRADER,
       [BuildingType.BAKERY]: Profession.BAKER,
+      [BuildingType.TAVERN]: Profession.BARKEEP,
     };
     return map[type] || Profession.LABORER;
   }

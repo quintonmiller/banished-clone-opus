@@ -112,6 +112,14 @@ export class EventLog {
       this.addEntry('weather', 'The weather has cleared', '#aaddaa');
     });
 
+    bus.on('wedding', (data: any) => {
+      const male = this.game.world.getComponent<any>(data.maleId, 'citizen');
+      const female = this.game.world.getComponent<any>(data.femaleId, 'citizen');
+      const mName = male?.name || 'Unknown';
+      const fName = female?.name || 'Unknown';
+      this.addEntry('social', `${mName} and ${fName} got married!`, '#ff88cc');
+    });
+
     bus.on('festival_started', (data: any) => {
       const names: Record<string, string> = {
         planting_day: 'Planting Day',

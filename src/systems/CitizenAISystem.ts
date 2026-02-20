@@ -18,6 +18,7 @@ import {
   TRAIT_WANDER_HAPPINESS, PersonalityTrait,
   PROFESSION_SKILL_MAP, SKILL_XP_PER_WORK_TICK,
   SKILL_XP_PER_LEVEL, SKILL_MAX_LEVEL,
+  TAVERN_HAPPINESS_PER_TICK, TAVERN_VISIT_CHANCE, TAVERN_EVENING_START,
 } from '../constants';
 import { distance } from '../utils/MathUtils';
 
@@ -192,10 +193,15 @@ export class CitizenAISystem {
         }
       }
 
-      // 8. Social interaction — chat with nearby citizens
+      // 8. Evening tavern visit — after work, before bed
+      if (this.game.state.dayProgress >= TAVERN_EVENING_START && !this.game.state.isNight) {
+        if (this.tryVisitTavern(id, citizen, needs, movement)) continue;
+      }
+
+      // 9. Social interaction — chat with nearby citizens
       if (this.trySocialize(id, citizen, needs)) continue;
 
-      // 9. Wander randomly
+      // 10. Wander randomly
       // Adventurous trait — gain happiness from wandering
       if (this.hasTrait(citizen, PersonalityTrait.ADVENTUROUS)) {
         const wanderHappy = TRAIT_WANDER_HAPPINESS[PersonalityTrait.ADVENTUROUS] || 0;
@@ -385,6 +391,35 @@ export class CitizenAISystem {
   /** Check if citizen has a specific trait */
   private hasTrait(citizen: any, trait: PersonalityTrait): boolean {
     return (citizen.traits || []).includes(trait);
+  }
+
+  /** Try to visit a completed tavern with a barkeep for evening relaxation */
+  private tryVisitTavern(id: EntityId, citizen: any, needs: any, movement: any): boolean {
+    if (Math.random() > TAVERN_VISIT_CHANCE) return false;
+
+    const buildings = this.game.world.getComponentStore<any>('building');
+    if (!buildings) return false;
+
+    for (const [bldId, bld] of buildings) {
+      if (bld.type !== BuildingType.TAVERN || !bld.completed) continue;
+      // Tavern needs a barkeep to be active
+      const workerCount = bld.assignedWorkers?.length || 0;
+      if (workerCount === 0) continue;
+
+      if (this.isNearBuilding(id, bldId)) {
+        // At tavern — gain happiness
+        citizen.activity = 'drinking';
+        needs.happiness = Math.min(100, needs.happiness + TAVERN_HAPPINESS_PER_TICK * AI_TICK_INTERVAL);
+        needs.lastSocialTick = this.game.state.tick;
+        movement.stuckTicks = 0;
+        return true;
+      }
+
+      // Go to tavern
+      citizen.activity = 'drinking';
+      if (this.goToBuilding(id, bldId)) return true;
+    }
+    return false;
   }
 
   /** Try to chat with a nearby citizen */
@@ -641,6 +676,7 @@ export class CitizenAISystem {
       case Profession.TRADER: return 'trading';
       case Profession.BUILDER: return 'building';
       case Profession.BAKER: return 'baking';
+      case Profession.BARKEEP: return 'serving';
       default: return 'working';
     }
   }

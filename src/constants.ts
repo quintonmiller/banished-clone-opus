@@ -393,6 +393,16 @@ export const FROST_FAIR_DISEASE_MULT = 0.5;           // 50% less disease chance
 export const PLANTING_DAY_CROP_MULT = 1.2;            // 20% crop growth boost
 export const MIDSUMMER_HAPPINESS_MULT = 1.5;          // 50% more happiness gain
 
+// Tavern & Social Buildings
+export const TAVERN_HAPPINESS_PER_TICK = 0.03;    // happiness gained per tick while at tavern
+export const TAVERN_VISIT_CHANCE = 0.15;           // chance per AI tick to visit tavern in evening
+export const TAVERN_EVENING_START = 0.6;           // fraction of day when evening begins (before dusk)
+export const TAVERN_SOCIAL_RADIUS = 4;             // social interaction radius near tavern
+export const WELL_HAPPINESS_RADIUS = 15;           // tiles from well that get happiness boost
+export const WELL_HAPPINESS_PER_TICK = 0.002;      // passive happiness per tick for citizens near well
+export const CHAPEL_WEDDING_HAPPINESS = 10;        // happiness boost for newlyweds if chapel exists
+export const CHAPEL_COMMUNITY_HAPPINESS = 0.001;   // passive per-tick happiness for all citizens if chapel exists
+
 // Spatial hash
 export const SPATIAL_CELL_SIZE = 8; // tiles
 
@@ -489,6 +499,9 @@ export const BuildingType = {
   ROAD: 'road',
   TOWN_HALL: 'town_hall',
   BAKERY: 'bakery',
+  TAVERN: 'tavern',
+  WELL: 'well',
+  CHAPEL: 'chapel',
 } as const;
 export type BuildingType = (typeof BuildingType)[keyof typeof BuildingType];
 
@@ -508,6 +521,7 @@ export const Profession = {
   TRADER: 'trader',
   BUILDER: 'builder',
   BAKER: 'baker',
+  BARKEEP: 'barkeep',
 } as const;
 export type Profession = (typeof Profession)[keyof typeof Profession];
 

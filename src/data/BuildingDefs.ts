@@ -180,6 +180,36 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     constructionWork: 250,       // 5 workers → 22h
     description: 'Cooks raw ingredients into meals. Cooked food restores more and gives buffs. 2 workers.',
   },
+  [BuildingType.TAVERN]: {
+    type: BuildingType.TAVERN,
+    name: 'Tavern',
+    category: BuildingCategory.SERVICES,
+    width: 4, height: 4,
+    costLog: 50, costStone: 30, costIron: 10,
+    maxWorkers: 1, workRadius: 0,
+    constructionWork: 400,       // 5 workers → 1.5d
+    description: 'Citizens visit in the evening for socializing and happiness. 1 barkeep.',
+  },
+  [BuildingType.WELL]: {
+    type: BuildingType.WELL,
+    name: 'Well',
+    category: BuildingCategory.SERVICES,
+    width: 2, height: 2,
+    costLog: 8, costStone: 20, costIron: 0,
+    maxWorkers: 0, workRadius: 15,
+    constructionWork: 100,       // 5 workers → 9h
+    description: 'Decorative. Passively boosts happiness for citizens within 15 tiles.',
+  },
+  [BuildingType.CHAPEL]: {
+    type: BuildingType.CHAPEL,
+    name: 'Chapel',
+    category: BuildingCategory.SERVICES,
+    width: 3, height: 3,
+    costLog: 40, costStone: 50, costIron: 8,
+    maxWorkers: 0, workRadius: 0,
+    constructionWork: 350,       // 5 workers → 1.3d
+    description: 'Weddings happen here. Boosts newlywed happiness and community morale.',
+  },
   [BuildingType.TOWN_HALL]: {
     type: BuildingType.TOWN_HALL,
     name: 'Town Hall',
