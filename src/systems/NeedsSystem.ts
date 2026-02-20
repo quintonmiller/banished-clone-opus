@@ -6,7 +6,20 @@ import {
   HEALTH_DECAY_PER_TICK, NO_COAT_WARMTH_MULT, COAT_WEAR_PER_TICK,
   ENERGY_DECAY_PER_TICK, ENERGY_RECOVERY_PER_TICK,
   DIET_VARIETY_THRESHOLD, DIET_VARIETY_HAPPINESS, DIET_MONOTONY_HAPPINESS,
-  ResourceType,
+  ResourceType, OLD_AGE,
+  SLEEP_FOOD_DECAY_MULT, WARM_WEATHER_TEMP, WARM_WEATHER_RECOVERY,
+  COLD_WARMTH_DIVISOR, HOUSE_WARMTH_THRESHOLD, HOUSE_WARMTH_DECAY_MULT,
+  HOUSE_WARMTH_RECOVERY, FREEZING_TEMP_THRESHOLD,
+  HEALTH_REGEN_FOOD_MIN, HEALTH_REGEN_WARMTH_MIN, HEALTH_REGEN_ENERGY_MIN,
+  HEALTH_REGEN_RATE, HERB_USE_HEALTH_THRESHOLD, HERB_USE_CHANCE,
+  HERB_HEALTH_RESTORE, OLD_AGE_HEALTH_DIVISOR,
+  UNHAPPY_FOOD_THRESHOLD, UNHAPPY_WARMTH_THRESHOLD, UNHAPPY_HEALTH_THRESHOLD,
+  UNHAPPY_ENERGY_THRESHOLD, UNHAPPINESS_RATE,
+  HAPPY_NEEDS_THRESHOLD, HAPPY_ENERGY_THRESHOLD, HAPPINESS_GAIN_RATE,
+  TRIMESTER_1_END, TRIMESTER_2_END,
+  T1_FOOD_DECAY_MULT, T1_ENERGY_DECAY_MULT, T1_SPEED_MULT,
+  T2_FOOD_DECAY_MULT, T2_ENERGY_DECAY_MULT, T2_SPEED_MULT,
+  T3_FOOD_DECAY_MULT, T3_ENERGY_DECAY_MULT, T3_SPEED_MULT,
 } from '../constants';
 
 export class NeedsSystem {
@@ -29,27 +42,55 @@ export class NeedsSystem {
       if (needs.energy === undefined) needs.energy = 100;
       if (citizen.isSleeping === undefined) citizen.isSleeping = false;
 
+      // --- Pregnancy modifiers ---
+      const family = world.getComponent<any>(id, 'family');
+      let pregnancyFoodMult = 1.0;
+      let pregnancyEnergyMult = 1.0;
+      let pregnancySpeedMult = 1.0;
+
+      if (family?.isPregnant && family.pregnancyTicks != null) {
+        if (family.pregnancyTicks < TRIMESTER_1_END) {
+          pregnancyFoodMult = T1_FOOD_DECAY_MULT;
+          pregnancyEnergyMult = T1_ENERGY_DECAY_MULT;
+          pregnancySpeedMult = T1_SPEED_MULT;
+        } else if (family.pregnancyTicks < TRIMESTER_2_END) {
+          pregnancyFoodMult = T2_FOOD_DECAY_MULT;
+          pregnancyEnergyMult = T2_ENERGY_DECAY_MULT;
+          pregnancySpeedMult = T2_SPEED_MULT;
+        } else {
+          pregnancyFoodMult = T3_FOOD_DECAY_MULT;
+          pregnancyEnergyMult = T3_ENERGY_DECAY_MULT;
+          pregnancySpeedMult = T3_SPEED_MULT;
+        }
+      }
+
+      // Set speed modifier on movement component
+      const movement = world.getComponent<any>(id, 'movement');
+      if (movement) {
+        movement.speedModifier = pregnancySpeedMult;
+      }
+
       // --- Energy ---
       if (citizen.isSleeping) {
         // Recover energy while sleeping
         needs.energy = Math.min(100, needs.energy + ENERGY_RECOVERY_PER_TICK);
-        // Food decays at half rate while sleeping (metabolism slows)
-        needs.food -= FOOD_DECAY_PER_TICK * 0.5;
+        // Food decays at reduced rate while sleeping (metabolism slows)
+        needs.food -= FOOD_DECAY_PER_TICK * SLEEP_FOOD_DECAY_MULT * pregnancyFoodMult;
       } else {
         // Drain energy while awake
-        needs.energy = Math.max(0, needs.energy - ENERGY_DECAY_PER_TICK);
+        needs.energy = Math.max(0, needs.energy - ENERGY_DECAY_PER_TICK * pregnancyEnergyMult);
         // Normal food decay
-        needs.food -= FOOD_DECAY_PER_TICK;
+        needs.food -= FOOD_DECAY_PER_TICK * pregnancyFoodMult;
       }
       needs.food = Math.max(0, needs.food);
 
       // --- Warmth ---
       let warmthDecay = WARMTH_DECAY_PER_TICK;
       if (seasonData.temperature < 0) {
-        warmthDecay *= 1 + Math.abs(seasonData.temperature) / 10;
-      } else if (seasonData.temperature > 15) {
+        warmthDecay *= 1 + Math.abs(seasonData.temperature) / COLD_WARMTH_DIVISOR;
+      } else if (seasonData.temperature > WARM_WEATHER_TEMP) {
         // Warm weather restores warmth
-        needs.warmth = Math.min(100, needs.warmth + 0.02);
+        needs.warmth = Math.min(100, needs.warmth + WARM_WEATHER_RECOVERY);
         warmthDecay = 0;
       }
 
@@ -62,13 +103,12 @@ export class NeedsSystem {
       }
 
       // Sleeping indoors greatly reduces warmth loss
-      const family = world.getComponent<any>(id, 'family');
       const isAtHome = family?.homeId != null && this.isNearHome(id, family.homeId);
       if (isAtHome) {
         const house = world.getComponent<any>(family.homeId, 'house');
-        if (house && house.warmthLevel > 30) {
-          warmthDecay *= 0.2;
-          needs.warmth = Math.min(100, needs.warmth + 0.05);
+        if (house && house.warmthLevel > HOUSE_WARMTH_THRESHOLD) {
+          warmthDecay *= HOUSE_WARMTH_DECAY_MULT;
+          needs.warmth = Math.min(100, needs.warmth + HOUSE_WARMTH_RECOVERY);
         }
       }
 
@@ -79,36 +119,36 @@ export class NeedsSystem {
       if (needs.food <= 0) {
         needs.health -= STARVATION_HEALTH_DAMAGE;
       }
-      if (needs.warmth <= 0 && seasonData.temperature < 5) {
+      if (needs.warmth <= 0 && seasonData.temperature < FREEZING_TEMP_THRESHOLD) {
         needs.health -= FREEZING_HEALTH_DAMAGE;
       }
 
       // Natural health regeneration (when well-fed, warm, and rested)
-      if (needs.food > 50 && needs.warmth > 50 && needs.energy > 30 && needs.health < 100) {
-        needs.health += 0.005;
+      if (needs.food > HEALTH_REGEN_FOOD_MIN && needs.warmth > HEALTH_REGEN_WARMTH_MIN && needs.energy > HEALTH_REGEN_ENERGY_MIN && needs.health < 100) {
+        needs.health += HEALTH_REGEN_RATE;
       }
 
       // Herbs boost health
-      if (needs.health < 80 && this.game.getResource('herbs') > 0) {
-        if (this.game.rng.chance(0.001)) {
+      if (needs.health < HERB_USE_HEALTH_THRESHOLD && this.game.getResource('herbs') > 0) {
+        if (this.game.rng.chance(HERB_USE_CHANCE)) {
           this.game.removeResource('herbs', 1);
-          needs.health = Math.min(100, needs.health + 10);
+          needs.health = Math.min(100, needs.health + HERB_HEALTH_RESTORE);
         }
       }
 
       // Old age health decay
-      if (citizen.age > 60) {
-        needs.health -= HEALTH_DECAY_PER_TICK * (citizen.age - 60) / 20;
+      if (citizen.age > OLD_AGE) {
+        needs.health -= HEALTH_DECAY_PER_TICK * (citizen.age - OLD_AGE) / OLD_AGE_HEALTH_DIVISOR;
       }
 
       needs.health = Math.max(0, Math.min(100, needs.health));
 
       // --- Happiness ---
       // Low energy makes citizens unhappy
-      if (needs.food < 30 || needs.warmth < 30 || needs.health < 50 || needs.energy < 15) {
-        needs.happiness = Math.max(0, needs.happiness - 0.01);
-      } else if (needs.food > 70 && needs.warmth > 70 && needs.health > 70 && needs.energy > 50) {
-        needs.happiness = Math.min(100, needs.happiness + 0.005);
+      if (needs.food < UNHAPPY_FOOD_THRESHOLD || needs.warmth < UNHAPPY_WARMTH_THRESHOLD || needs.health < UNHAPPY_HEALTH_THRESHOLD || needs.energy < UNHAPPY_ENERGY_THRESHOLD) {
+        needs.happiness = Math.max(0, needs.happiness - UNHAPPINESS_RATE);
+      } else if (needs.food > HAPPY_NEEDS_THRESHOLD && needs.warmth > HAPPY_NEEDS_THRESHOLD && needs.health > HAPPY_NEEDS_THRESHOLD && needs.energy > HAPPY_ENERGY_THRESHOLD) {
+        needs.happiness = Math.min(100, needs.happiness + HAPPINESS_GAIN_RATE);
       }
 
       // Diet variety bonus/penalty

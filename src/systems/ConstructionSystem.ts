@@ -1,5 +1,5 @@
 import type { Game } from '../Game';
-import { EDUCATION_BONUS } from '../constants';
+import { EDUCATION_BONUS, CONSTRUCTION_WORK_RATE, EDUCATED_CONSTRUCTION_BONUS, INITIAL_HOUSE_WARMTH } from '../constants';
 
 export class ConstructionSystem {
   private game: Game;
@@ -43,12 +43,12 @@ export class ConstructionSystem {
       if (!bld.materialsDelivered && bld.constructionProgress === 0) continue;
 
       // Advance construction
-      let workRate = workers.length * 0.5; // base work per tick per worker
+      let workRate = workers.length * CONSTRUCTION_WORK_RATE;
 
       // Educated workers build faster
       for (const wId of workers) {
         const cit = world.getComponent<any>(wId, 'citizen');
-        if (cit?.isEducated) workRate += 0.25;
+        if (cit?.isEducated) workRate += EDUCATED_CONSTRUCTION_BONUS;
       }
 
       bld.constructionProgress += workRate / (bld.constructionWork || 100);
@@ -56,6 +56,10 @@ export class ConstructionSystem {
       if (bld.constructionProgress >= 1) {
         bld.constructionProgress = 1;
         bld.completed = true;
+
+        this.game.eventBus.emit('building_completed', {
+          id, name: bld.name, tileX: bPos.tileX, tileY: bPos.tileY,
+        });
 
         // Add producer component if this building produces resources
         this.initCompletedBuilding(id, bld);
@@ -109,7 +113,7 @@ export class ConstructionSystem {
       world.addComponent(id, 'house', {
         residents: [],
         firewood: 0,
-        warmthLevel: 50,
+        warmthLevel: INITIAL_HOUSE_WARMTH,
         maxResidents: bld.residents || 5,
       });
     }

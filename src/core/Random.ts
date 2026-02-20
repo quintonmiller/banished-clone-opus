@@ -36,6 +36,17 @@ export class Random {
     return arr[this.int(0, arr.length - 1)];
   }
 
+  /** Get internal RNG state for serialization */
+  getState(): number {
+    return this.state;
+  }
+
+  /** Restore internal RNG state from serialization */
+  setState(s: number): void {
+    this.state = s;
+    if (this.state === 0) this.state = 1;
+  }
+
   /** Shuffle array in place */
   shuffle<T>(arr: T[]): T[] {
     for (let i = arr.length - 1; i > 0; i--) {

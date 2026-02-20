@@ -1,14 +1,20 @@
 import type { Game } from '../Game';
-import { HUD_HEIGHT, BUILD_MENU_HEIGHT, INFO_PANEL_WIDTH, MINIMAP_SIZE } from '../constants';
+import {
+  HUD_HEIGHT, BUILD_MENU_HEIGHT, INFO_PANEL_WIDTH, MINIMAP_SIZE,
+  EVENT_LOG_VISIBLE_ROWS, EVENT_LOG_ROW_HEIGHT, EVENT_LOG_HEADER_HEIGHT,
+} from '../constants';
 import { BuildMenu } from './BuildMenu';
 import { InfoPanel } from './InfoPanel';
 import { Minimap } from './Minimap';
+import { EventLog } from './EventLog';
+import { Settings } from '../Settings';
 
 export class UIManager {
   private game: Game;
   private buildMenu: BuildMenu;
   private infoPanel: InfoPanel;
   private minimap: Minimap;
+  private eventLog: EventLog;
   buildMenuOpen = false;
   debugOverlay = false;
   private notifications: Array<{ text: string; time: number; color: string }> = [];
@@ -18,6 +24,7 @@ export class UIManager {
     this.buildMenu = new BuildMenu(game);
     this.infoPanel = new InfoPanel(game);
     this.minimap = new Minimap(game);
+    this.eventLog = new EventLog(game);
 
     // Listen for events
     game.eventBus.on('citizen_died', (data: any) => {
@@ -34,10 +41,18 @@ export class UIManager {
     });
   }
 
-  handleClick(x: number, y: number): boolean {
+  handleClick(screenX: number, screenY: number): boolean {
+    // Event log click (highest priority when visible)
+    if (this.eventLog.handleClick(screenX, screenY)) return true;
+
+    // Convert screen coords to UI coords (account for UI scale)
+    const s = Settings.get('uiScale');
+    const x = screenX / s;
+    const y = screenY / s;
+
     // Build menu click
     if (this.buildMenuOpen) {
-      const menuY = this.game.logicalHeight - BUILD_MENU_HEIGHT;
+      const menuY = this.game.logicalHeight / s - BUILD_MENU_HEIGHT;
       if (y >= menuY) {
         this.buildMenu.handleClick(x, y - menuY);
         return true;
@@ -51,18 +66,24 @@ export class UIManager {
     }
 
     // Minimap click
-    const mmPos = this.minimap.getPosition(this.game.logicalHeight, this.buildMenuOpen, BUILD_MENU_HEIGHT);
+    const mmPos = this.minimap.getPosition(this.game.logicalHeight / s, this.buildMenuOpen, BUILD_MENU_HEIGHT);
     if (x >= mmPos.x && x <= mmPos.x + MINIMAP_SIZE &&
         y >= mmPos.y && y <= mmPos.y + MINIMAP_SIZE) {
       this.minimap.handleClick(x - mmPos.x, y - mmPos.y);
       return true;
     }
 
+    // InfoPanel button clicks
+    if (this.game.state.selectedEntity !== null) {
+      if (this.infoPanel.handleClick(screenX, screenY)) return true;
+    }
+
     return false;
   }
 
   private handleHUDClick(x: number, _y: number): void {
-    if (x > this.game.logicalWidth - 200) {
+    const s = Settings.get('uiScale');
+    if (x > this.game.logicalWidth / s - 200) {
       const speeds = [1, 2, 5, 10];
       const currentIdx = speeds.indexOf(this.game.state.speed);
       const nextIdx = (currentIdx + 1) % speeds.length;
@@ -79,6 +100,18 @@ export class UIManager {
     this.buildMenuOpen = false;
   }
 
+  toggleEventLog(): void {
+    this.eventLog.visible = !this.eventLog.visible;
+  }
+
+  getEventLog(): EventLog {
+    return this.eventLog;
+  }
+
+  handleScroll(delta: number, mouseX: number, mouseY: number): boolean {
+    return this.eventLog.handleScroll(delta, mouseX, mouseY);
+  }
+
   addNotification(text: string, color: string): void {
     this.notifications.push({ text, time: 300, color });
     if (this.notifications.length > 5) {
@@ -87,8 +120,13 @@ export class UIManager {
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const w = this.game.logicalWidth;
-    const h = this.game.logicalHeight;
+    const s = Settings.get('uiScale');
+
+    ctx.save();
+    ctx.scale(s, s);
+
+    const w = this.game.logicalWidth / s;
+    const h = this.game.logicalHeight / s;
 
     // Draw build menu
     if (this.buildMenuOpen) {
@@ -110,6 +148,9 @@ export class UIManager {
     // Draw minimap (pass build menu state)
     this.minimap.draw(ctx, w, h, this.buildMenuOpen, BUILD_MENU_HEIGHT);
 
+    // Draw event log
+    this.eventLog.draw(ctx, w, h);
+
     // Draw notifications
     this.drawNotifications(ctx);
 
@@ -121,16 +162,50 @@ export class UIManager {
       this.drawDebugOverlay(ctx, w, h);
     }
 
+    // Draw keyboard hint for log
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(w - 100, h - 82, 90, 22);
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('[L] Log', w - 95, h - 66);
+
     // Draw keyboard hint for debug
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(w - 100, h - 56, 90, 22);
     ctx.fillStyle = '#888';
     ctx.font = '10px monospace';
     ctx.fillText('[F3] Debug', w - 95, h - 40);
+
+    // Assignment mode banner
+    if (this.game.state.assigningWorker !== null) {
+      const citizenId = this.game.state.assigningWorker;
+      const cit = this.game.world.getComponent<any>(citizenId, 'citizen');
+      const name = cit?.name || 'Worker';
+
+      const bannerText = `Assign ${name} — Click a building (Right-click / Esc to cancel)`;
+      const bannerW = Math.min(w - 20, 520);
+      const bannerX = (w - bannerW) / 2;
+      const bannerY = HUD_HEIGHT + 4;
+
+      ctx.fillStyle = 'rgba(20, 60, 30, 0.9)';
+      ctx.fillRect(bannerX, bannerY, bannerW, 26);
+      ctx.strokeStyle = '#44cc66';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bannerX, bannerY, bannerW, 26);
+      ctx.fillStyle = '#88ff88';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText(bannerText, bannerX + 10, bannerY + 18);
+    }
+
+    ctx.restore();
   }
 
   private drawNotifications(ctx: CanvasRenderingContext2D): void {
+    // Offset notifications below event log when it's visible
     let y = HUD_HEIGHT + 10;
+    if (this.eventLog.visible) {
+      y = HUD_HEIGHT + 10 + EVENT_LOG_HEADER_HEIGHT + EVENT_LOG_VISIBLE_ROWS * EVENT_LOG_ROW_HEIGHT + 18;
+    }
     for (let i = this.notifications.length - 1; i >= 0; i--) {
       const n = this.notifications[i];
       n.time--;

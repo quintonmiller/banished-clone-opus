@@ -1,5 +1,10 @@
 import type { Game } from '../Game';
-import { BuildingType, ResourceType, FOOD_TYPES, FOOD_SPOILAGE_RATE, BARN_SPOILAGE_MULT } from '../constants';
+import {
+  BuildingType, ResourceType, FOOD_TYPES, FOOD_SPOILAGE_RATE, BARN_SPOILAGE_MULT,
+  STORAGE_CHECK_INTERVAL, HOUSE_FIREWOOD_MIN, HOUSE_FIREWOOD_TARGET,
+  HOUSE_WARMTH_GAIN_FROM_FIRE, HOUSE_FIREWOOD_CONSUMPTION,
+  HOUSE_WARMTH_LOSS_NO_FIRE, MARKET_HAPPINESS_GAIN,
+} from '../constants';
 
 export class StorageSystem {
   private game: Game;
@@ -11,12 +16,19 @@ export class StorageSystem {
 
   update(): void {
     this.tickCounter++;
-    // Only run every 30 ticks (3 seconds)
-    if (this.tickCounter % 30 !== 0) return;
+    if (this.tickCounter % STORAGE_CHECK_INTERVAL !== 0) return;
 
     this.restockHouses();
     this.distributeFromMarket();
     this.spoilFood();
+  }
+
+  getInternalState(): { tickCounter: number } {
+    return { tickCounter: this.tickCounter };
+  }
+
+  setInternalState(s: { tickCounter: number }): void {
+    this.tickCounter = s.tickCounter;
   }
 
   /** Restock houses with firewood from global supply */
@@ -27,19 +39,19 @@ export class StorageSystem {
 
     for (const [id, house] of houses) {
       // Restock firewood
-      if (house.firewood < 10) {
-        const needed = 20 - house.firewood;
+      if (house.firewood < HOUSE_FIREWOOD_MIN) {
+        const needed = HOUSE_FIREWOOD_TARGET - house.firewood;
         const delivered = this.game.removeResource(ResourceType.FIREWOOD, needed);
         house.firewood += delivered;
       }
 
       // Update warmth level based on firewood
       if (house.firewood > 0) {
-        house.warmthLevel = Math.min(100, house.warmthLevel + 2);
-        house.firewood -= 0.05;
+        house.warmthLevel = Math.min(100, house.warmthLevel + HOUSE_WARMTH_GAIN_FROM_FIRE);
+        house.firewood -= HOUSE_FIREWOOD_CONSUMPTION;
         if (house.firewood < 0) house.firewood = 0;
       } else {
-        house.warmthLevel = Math.max(0, house.warmthLevel - 5);
+        house.warmthLevel = Math.max(0, house.warmthLevel - HOUSE_WARMTH_LOSS_NO_FIRE);
       }
     }
   }
@@ -63,7 +75,7 @@ export class StorageSystem {
         const dy = cPos.tileY - pos.tileY;
         if (Math.abs(dx) <= (bld.workRadius || 40) && Math.abs(dy) <= (bld.workRadius || 40)) {
           const needs = world.getComponent<any>(cId, 'needs')!;
-          needs.happiness = Math.min(100, needs.happiness + 0.5);
+          needs.happiness = Math.min(100, needs.happiness + MARKET_HAPPINESS_GAIN);
         }
       }
     }

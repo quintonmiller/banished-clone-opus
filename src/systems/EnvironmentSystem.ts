@@ -2,6 +2,8 @@ import type { Game } from '../Game';
 import {
   TileType, NATURAL_REGROWTH_CHANCE, MAP_WIDTH, MAP_HEIGHT,
   BUILDING_DECAY_PER_TICK, BUILDING_MAX_DURABILITY,
+  ENVIRONMENT_TILES_PER_TICK, MAX_TREE_DENSITY, FOREST_GROWTH_CHANCE,
+  BUILDING_DECAY_CHECK_INTERVAL, Profession,
 } from '../constants';
 
 /**
@@ -13,7 +15,6 @@ import {
 export class EnvironmentSystem {
   private game: Game;
   private scanIndex = 0;
-  private readonly TILES_PER_TICK = 200;
   private buildingDecayCounter = 0;
 
   constructor(game: Game) {
@@ -25,7 +26,7 @@ export class EnvironmentSystem {
     const totalTiles = MAP_WIDTH * MAP_HEIGHT;
 
     // Scan a portion of the map each tick
-    for (let i = 0; i < this.TILES_PER_TICK; i++) {
+    for (let i = 0; i < ENVIRONMENT_TILES_PER_TICK; i++) {
       const idx = this.scanIndex;
       this.scanIndex = (this.scanIndex + 1) % totalTiles;
 
@@ -44,16 +45,16 @@ export class EnvironmentSystem {
       }
 
       // Existing forests slowly grow denser
-      if (tile.type === TileType.FOREST && tile.trees < 5) {
-        if (Math.random() < 0.0002) {
-          tile.trees = Math.min(5, tile.trees + 1);
+      if (tile.type === TileType.FOREST && tile.trees < MAX_TREE_DENSITY) {
+        if (Math.random() < FOREST_GROWTH_CHANCE) {
+          tile.trees = Math.min(MAX_TREE_DENSITY, tile.trees + 1);
         }
       }
     }
 
     // Building decay — check every 10 ticks
     this.buildingDecayCounter++;
-    if (this.buildingDecayCounter >= 10) {
+    if (this.buildingDecayCounter >= BUILDING_DECAY_CHECK_INTERVAL) {
       this.buildingDecayCounter = 0;
       this.decayBuildings();
     }
@@ -71,7 +72,7 @@ export class EnvironmentSystem {
       if (bld.durability === undefined) bld.durability = BUILDING_MAX_DURABILITY;
 
       // Decay
-      bld.durability -= BUILDING_DECAY_PER_TICK * 10;
+      bld.durability -= BUILDING_DECAY_PER_TICK * BUILDING_DECAY_CHECK_INTERVAL;
 
       // Buildings at 0 durability collapse
       if (bld.durability <= 0) {
@@ -89,7 +90,7 @@ export class EnvironmentSystem {
         const worker = world.getComponent<any>(wId, 'worker');
         if (worker) {
           worker.workplaceId = null;
-          worker.profession = 'laborer';
+          worker.profession = Profession.LABORER;
         }
       }
     }
@@ -117,7 +118,16 @@ export class EnvironmentSystem {
     }
 
     world.destroyEntity(id);
-    this.game.eventBus.emit('building_collapsed', { name: bld.name });
+    this.game.eventBus.emit('building_collapsed', { name: bld.name, tileX: pos?.tileX, tileY: pos?.tileY });
+  }
+
+  getInternalState(): { scanIndex: number; buildingDecayCounter: number } {
+    return { scanIndex: this.scanIndex, buildingDecayCounter: this.buildingDecayCounter };
+  }
+
+  setInternalState(s: { scanIndex: number; buildingDecayCounter: number }): void {
+    this.scanIndex = s.scanIndex;
+    this.buildingDecayCounter = s.buildingDecayCounter;
   }
 
   private hasAdjacentForest(x: number, y: number): boolean {

@@ -2,7 +2,8 @@ import type { Game } from '../Game';
 import {
   WEATHER_CHECK_INTERVAL, STORM_CHANCE, DROUGHT_CHANCE, HARSH_WINTER_CHANCE,
   STORM_DURATION_TICKS, STORM_BUILDING_DAMAGE, STORM_CROP_DAMAGE,
-  DROUGHT_DURATION_TICKS, BuildingType,
+  DROUGHT_DURATION_TICKS, DROUGHT_CROP_MULT, BuildingType,
+  STORM_WARMTH_DRAIN, HARSH_WINTER_WARMTH_DRAIN, STORM_CROP_WEATHER_MULT,
 } from '../constants';
 import { SEASON_DATA } from '../data/SeasonDefs';
 
@@ -97,7 +98,7 @@ export class WeatherSystem {
         const needs = world.getComponent<any>(id, 'needs')!;
         const citizen = world.getComponent<any>(id, 'citizen');
         if (!citizen?.isSleeping) { // Only if not sheltered
-          needs.warmth = Math.max(0, needs.warmth - 0.05);
+          needs.warmth = Math.max(0, needs.warmth - STORM_WARMTH_DRAIN);
         }
       }
     }
@@ -107,17 +108,27 @@ export class WeatherSystem {
       const entities = world.query('citizen', 'needs');
       for (const id of entities) {
         const needs = world.getComponent<any>(id, 'needs')!;
-        needs.warmth = Math.max(0, needs.warmth - 0.03);
+        needs.warmth = Math.max(0, needs.warmth - HARSH_WINTER_WARMTH_DRAIN);
       }
     }
 
     // Drought effect is handled by ProductionSystem checking weatherSystem.currentWeather
   }
 
+  getInternalState(): { tickCounter: number; currentWeather: string; weatherTimer: number } {
+    return { tickCounter: this.tickCounter, currentWeather: this.currentWeather, weatherTimer: this.weatherTimer };
+  }
+
+  setInternalState(s: { tickCounter: number; currentWeather: string; weatherTimer: number }): void {
+    this.tickCounter = s.tickCounter;
+    this.currentWeather = s.currentWeather as WeatherEvent;
+    this.weatherTimer = s.weatherTimer;
+  }
+
   /** Get crop growth multiplier from current weather */
   getCropWeatherMult(): number {
-    if (this.currentWeather === 'drought') return 0.1;
-    if (this.currentWeather === 'storm') return 0.5;
+    if (this.currentWeather === 'drought') return DROUGHT_CROP_MULT;
+    if (this.currentWeather === 'storm') return STORM_CROP_WEATHER_MULT;
     return 1.0;
   }
 }

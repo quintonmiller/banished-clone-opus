@@ -1,6 +1,13 @@
 import { Random } from '../core/Random';
 import { TileMap } from './TileMap';
-import { TileType, FOREST_DENSITY, STONE_DEPOSIT_CHANCE, IRON_DEPOSIT_CHANCE, RIVER_WIDTH, STONE_DEPOSIT_AMOUNT, IRON_DEPOSIT_AMOUNT } from '../constants';
+import {
+  TileType, FOREST_DENSITY, STONE_DEPOSIT_CHANCE, IRON_DEPOSIT_CHANCE,
+  RIVER_WIDTH, STONE_DEPOSIT_AMOUNT, IRON_DEPOSIT_AMOUNT,
+  ELEVATION_NOISE_SCALE, MOISTURE_NOISE_SCALE, FOREST_NOISE_SCALE,
+  WATER_ELEVATION_THRESHOLD, FOREST_ELEVATION_MIN, FERTILE_MOISTURE_THRESHOLD,
+  STONE_ELEVATION_THRESHOLD, START_AREA_RADIUS, RIVER_START_POSITION,
+  RIVER_START_OFFSET, START_LOCATION_SEARCH_RADIUS,
+} from '../constants';
 
 /** Simple 2D noise using value noise with interpolation */
 class SimplexNoise2D {
@@ -80,27 +87,27 @@ export class MapGenerator {
     // Generate elevation and moisture
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        const elev = elevationNoise.fbm(x / 60, y / 60, 5);
-        const moisture = moistureNoise.fbm(x / 40, y / 40, 3);
-        const forestVal = forestNoise.fbm(x / 30, y / 30, 3);
+        const elev = elevationNoise.fbm(x / ELEVATION_NOISE_SCALE, y / ELEVATION_NOISE_SCALE, 5);
+        const moisture = moistureNoise.fbm(x / MOISTURE_NOISE_SCALE, y / MOISTURE_NOISE_SCALE, 3);
+        const forestVal = forestNoise.fbm(x / FOREST_NOISE_SCALE, y / FOREST_NOISE_SCALE, 3);
 
         tileMap.set(x, y, { elevation: elev, fertility: moisture });
 
         // Low elevation = water
-        if (elev < 0.25) {
+        if (elev < WATER_ELEVATION_THRESHOLD) {
           tileMap.set(x, y, { type: TileType.WATER });
         }
         // Forest based on combined noise
-        else if (forestVal > (1 - FOREST_DENSITY) && elev > 0.3) {
+        else if (forestVal > (1 - FOREST_DENSITY) && elev > FOREST_ELEVATION_MIN) {
           const trees = Math.floor(forestVal * 5) + 1;
           tileMap.set(x, y, { type: TileType.FOREST, trees: Math.min(trees, 5) });
         }
         // Fertile grassland
-        else if (moisture > 0.55 && elev > 0.3) {
+        else if (moisture > FERTILE_MOISTURE_THRESHOLD && elev > FOREST_ELEVATION_MIN) {
           tileMap.set(x, y, { type: TileType.FERTILE, fertility: moisture });
         }
         // Regular grass
-        else if (elev >= 0.25) {
+        else if (elev >= WATER_ELEVATION_THRESHOLD) {
           tileMap.set(x, y, { type: TileType.GRASS });
         }
       }
@@ -113,7 +120,7 @@ export class MapGenerator {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const tile = tileMap.get(x, y)!;
-        if (tile.type === TileType.GRASS && tile.elevation > 0.6) {
+        if (tile.type === TileType.GRASS && tile.elevation > STONE_ELEVATION_THRESHOLD) {
           if (rng.chance(STONE_DEPOSIT_CHANCE)) {
             tileMap.set(x, y, { type: TileType.STONE, stoneAmount: STONE_DEPOSIT_AMOUNT });
           } else if (rng.chance(IRON_DEPOSIT_CHANCE)) {
@@ -123,11 +130,11 @@ export class MapGenerator {
       }
     }
 
-    // Clear starting area (center 20x20)
+    // Clear starting area
     const cx = Math.floor(w / 2);
     const cy = Math.floor(h / 2);
-    for (let dy = -10; dy <= 10; dy++) {
-      for (let dx = -10; dx <= 10; dx++) {
+    for (let dy = -START_AREA_RADIUS; dy <= START_AREA_RADIUS; dy++) {
+      for (let dx = -START_AREA_RADIUS; dx <= START_AREA_RADIUS; dx++) {
         const tile = tileMap.get(cx + dx, cy + dy);
         if (tile && tile.type !== TileType.WATER && tile.type !== TileType.RIVER) {
           tileMap.set(cx + dx, cy + dy, { type: TileType.GRASS, trees: 0, fertility: 0.5 });
@@ -141,7 +148,7 @@ export class MapGenerator {
     const h = tileMap.height;
 
     // River flows roughly top to bottom with some winding
-    let rx = Math.floor(w * 0.3) + rng.int(-20, 20);
+    let rx = Math.floor(w * RIVER_START_POSITION) + rng.int(-RIVER_START_OFFSET, RIVER_START_OFFSET);
     const halfWidth = Math.floor(RIVER_WIDTH / 2);
 
     for (let y = 0; y < h; y++) {
@@ -164,7 +171,7 @@ export class MapGenerator {
     const cy = Math.floor(tileMap.height / 2);
 
     // Spiral out from center to find walkable ground
-    for (let r = 0; r < 20; r++) {
+    for (let r = 0; r < START_LOCATION_SEARCH_RADIUS; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;

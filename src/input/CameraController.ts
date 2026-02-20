@@ -1,6 +1,7 @@
 import { Camera } from '../map/Camera';
 import { InputManager } from './InputManager';
-import { CAMERA_PAN_SPEED, ZOOM_SPEED } from '../constants';
+import { EDGE_PAN_MARGIN } from '../constants';
+import { Settings } from '../Settings';
 
 export class CameraController {
   private lastMouseX = 0;
@@ -15,7 +16,7 @@ export class CameraController {
   }
 
   update(dt: number): void {
-    const speed = CAMERA_PAN_SPEED * dt / this.camera.zoom;
+    const speed = Settings.get('cameraPanSpeed') * dt / this.camera.zoom;
     let dx = 0;
     let dy = 0;
 
@@ -27,6 +28,16 @@ export class CameraController {
 
     const mx = this.input.mouseX;
     const my = this.input.mouseY;
+
+    // Edge panning
+    if (Settings.get('edgePanEnabled')) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (mx <= EDGE_PAN_MARGIN) dx -= speed;
+      if (mx >= w - EDGE_PAN_MARGIN) dx += speed;
+      if (my <= EDGE_PAN_MARGIN) dy -= speed;
+      if (my >= h - EDGE_PAN_MARGIN) dy += speed;
+    }
 
     // Middle mouse drag
     if (this.input.middleDown) {
@@ -41,7 +52,7 @@ export class CameraController {
     // Scroll zoom
     const scroll = this.input.consumeScroll();
     if (scroll !== 0) {
-      this.camera.zoomAt(scroll * ZOOM_SPEED, mx, my);
+      this.camera.zoomAt(scroll * Settings.get('zoomSpeed'), mx, my);
     }
 
     this.lastMouseX = mx;

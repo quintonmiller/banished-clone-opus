@@ -1,5 +1,9 @@
 import type { Game } from '../Game';
-import { TILE_SIZE } from '../constants';
+import {
+  TILE_SIZE, MAX_PARTICLES, PARTICLE_SPAWN_INTERVAL,
+  SMOKE_SPAWN_CHANCE, SMOKE_MIN_WARMTH, SNOW_PARTICLES_PER_SPAWN,
+  LEAF_SPAWN_CHANCE,
+} from '../constants';
 import { SEASON_DATA } from '../data/SeasonDefs';
 
 interface Particle {
@@ -14,8 +18,6 @@ interface Particle {
   alpha: number;
 }
 
-const MAX_PARTICLES = 300;
-
 export class ParticleSystem {
   private game: Game;
   private particles: Particle[] = [];
@@ -29,7 +31,7 @@ export class ParticleSystem {
     this.tickCounter++;
 
     // Spawn new particles every few ticks
-    if (this.tickCounter % 3 === 0) {
+    if (this.tickCounter % PARTICLE_SPAWN_INTERVAL === 0) {
       this.spawnSmoke();
       this.spawnWeatherParticles();
     }
@@ -57,10 +59,10 @@ export class ParticleSystem {
     if (!houses) return;
 
     for (const [id, house] of houses) {
-      if (house.warmthLevel <= 20) continue; // No fire = no smoke
+      if (house.warmthLevel <= SMOKE_MIN_WARMTH) continue; // No fire = no smoke
 
       // Only spawn occasionally per house
-      if (Math.random() > 0.3) continue;
+      if (Math.random() > SMOKE_SPAWN_CHANCE) continue;
 
       const pos = world.getComponent<any>(id, 'position');
       const bld = world.getComponent<any>(id, 'building');
@@ -94,7 +96,7 @@ export class ParticleSystem {
 
     // Snow in winter
     if (seasonData.snow) {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < SNOW_PARTICLES_PER_SPAWN; i++) {
         const px = (bounds.startX + Math.random() * (bounds.endX - bounds.startX)) * TILE_SIZE;
         const py = bounds.startY * TILE_SIZE;
 
@@ -115,7 +117,7 @@ export class ParticleSystem {
     // Falling leaves in autumn
     const subSeason = this.game.state.subSeason;
     if (subSeason >= 6 && subSeason <= 8) { // Autumn
-      if (Math.random() < 0.3) {
+      if (Math.random() < LEAF_SPAWN_CHANCE) {
         const px = (bounds.startX + Math.random() * (bounds.endX - bounds.startX)) * TILE_SIZE;
         const py = bounds.startY * TILE_SIZE;
         const leafColors = ['#cc6622', '#dd8833', '#aa4411', '#eebb44'];
@@ -133,6 +135,15 @@ export class ParticleSystem {
         });
       }
     }
+  }
+
+  getInternalState(): { tickCounter: number } {
+    return { tickCounter: this.tickCounter };
+  }
+
+  setInternalState(s: { tickCounter: number }): void {
+    this.tickCounter = s.tickCounter;
+    this.particles = []; // Clear particles on load — they're visual-only
   }
 
   /** Draw all particles (called from RenderSystem in world space) */

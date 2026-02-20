@@ -45,6 +45,7 @@ export class BuildMenu {
     if (idx >= 0 && idx < buildings.length) {
       const def = buildings[idx];
       this.game.state.placingBuilding = def.type;
+      this.game.state.assigningWorker = null;
     }
   }
 

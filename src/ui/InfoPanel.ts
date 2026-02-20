@@ -1,16 +1,119 @@
 import type { Game } from '../Game';
 import { INFO_PANEL_WIDTH, HUD_HEIGHT } from '../constants';
+import { Settings } from '../Settings';
+import { EntityId } from '../types';
+
+const PANEL_HEIGHT = 460;
+const BTN_WIDTH = 120;
+const BTN_HEIGHT = 22;
+
+interface LinkRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  entityId: EntityId;
+}
 
 export class InfoPanel {
   private game: Game;
+
+  // Button hit-test rects (in UI-scaled coords)
+  private assignBtnRect: { x: number; y: number; w: number; h: number } | null = null;
+  private unassignBtnRect: { x: number; y: number; w: number; h: number } | null = null;
+
+  // Clickable entity link rects
+  private linkRects: LinkRect[] = [];
 
   constructor(game: Game) {
     this.game = game;
   }
 
+  /** Returns true if the click was consumed by a button or link */
+  handleClick(screenX: number, screenY: number): boolean {
+    const s = Settings.get('uiScale');
+    const x = screenX / s;
+    const y = screenY / s;
+
+    const id = this.game.state.selectedEntity;
+    if (id === null) return false;
+
+    // Check clickable entity links
+    for (const link of this.linkRects) {
+      if (x >= link.x && x <= link.x + link.w && y >= link.y && y <= link.y + link.h) {
+        this.selectAndFocus(link.entityId);
+        return true;
+      }
+    }
+
+    const citizen = this.game.world.getComponent<any>(id, 'citizen');
+    if (!citizen) return false;
+
+    const worker = this.game.world.getComponent<any>(id, 'worker');
+    if (!worker) return false;
+
+    // Check [Assign] button
+    if (this.assignBtnRect) {
+      const r = this.assignBtnRect;
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        this.game.state.assigningWorker = id;
+        return true;
+      }
+    }
+
+    // Check [Unassign] button
+    if (this.unassignBtnRect) {
+      const r = this.unassignBtnRect;
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        this.game.unassignWorker(id);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /** Select an entity and center the camera on it */
+  private selectAndFocus(entityId: EntityId): void {
+    if (!this.game.world.entityExists(entityId)) return;
+    this.game.state.selectedEntity = entityId;
+    const pos = this.game.world.getComponent<any>(entityId, 'position');
+    if (pos) {
+      this.game.camera.centerOn(pos.tileX, pos.tileY);
+    }
+  }
+
+  /** Draw a clickable link and register its hit rect. Returns the width of the drawn text. */
+  private drawLink(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    entityId: EntityId,
+  ): number {
+    const width = ctx.measureText(text).width;
+    ctx.fillStyle = '#55ccff';
+    ctx.fillText(text, x, y);
+    // Underline
+    ctx.strokeStyle = '#55ccff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 2);
+    ctx.lineTo(x + width, y + 2);
+    ctx.stroke();
+    // Register hit rect (text is drawn from baseline, so top is ~10px above)
+    this.linkRects.push({ x, y: y - 11, w: width, h: 14, entityId });
+    return width;
+  }
+
   draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     const id = this.game.state.selectedEntity;
     if (id === null) return;
+
+    // Clear button and link rects each frame
+    this.assignBtnRect = null;
+    this.unassignBtnRect = null;
+    this.linkRects = [];
 
     const world = this.game.world;
     if (!world.entityExists(id)) {
@@ -24,9 +127,9 @@ export class InfoPanel {
 
     // Background
     ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
-    ctx.fillRect(x, y, w, 300);
+    ctx.fillRect(x, y, w, PANEL_HEIGHT);
     ctx.strokeStyle = '#555';
-    ctx.strokeRect(x, y, w, 300);
+    ctx.strokeRect(x, y, w, PANEL_HEIGHT);
 
     let textY = y + 20;
     const leftX = x + 10;
@@ -78,6 +181,33 @@ export class InfoPanel {
         textY += 16;
       }
 
+      // Pregnancy status
+      const familyEarly = world.getComponent<any>(id, 'family');
+      if (familyEarly?.isPregnant) {
+        const ticks = familyEarly.pregnancyTicks || 0;
+        let trimesterLabel: string;
+        let trimesterColor: string;
+        if (ticks < 1800) {
+          trimesterLabel = 'T1';
+          trimesterColor = '#aaddaa';
+        } else if (ticks < 3600) {
+          trimesterLabel = 'T2';
+          trimesterColor = '#dddd88';
+        } else {
+          trimesterLabel = 'T3';
+          trimesterColor = '#ddaa88';
+        }
+
+        ctx.fillStyle = trimesterColor;
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`Pregnant (${trimesterLabel})`, leftX, textY);
+        textY += 16;
+
+        const progressPct = Math.min(100, (ticks / 5400) * 100);
+        this.drawBar(ctx, leftX, textY, w - 20, 'Preg.', progressPct, trimesterColor);
+        textY += 18;
+      }
+
       // Diet info
       if (needs && needs.recentDiet && needs.recentDiet.length > 0) {
         const unique = new Set(needs.recentDiet).size;
@@ -89,34 +219,137 @@ export class InfoPanel {
         textY += 16;
       }
 
-      // Worker info
+      // Worker info + assign/unassign buttons
       const worker = world.getComponent<any>(id, 'worker');
       if (worker) {
         ctx.fillStyle = '#cccccc';
-        ctx.fillText(`Job: ${worker.profession}`, leftX, textY);
+        ctx.font = '12px monospace';
+        const jobLabel = `Job: ${worker.profession}`;
+        ctx.fillText(jobLabel, leftX, textY);
+        // Show [Manual] tag if manually assigned
+        if (worker.manuallyAssigned) {
+          const jobWidth = ctx.measureText(jobLabel).width;
+          ctx.fillStyle = '#ffdd44';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText('[Manual]', leftX + jobWidth + 6, textY);
+        }
         textY += 16;
+
         if (worker.carrying) {
+          ctx.fillStyle = '#cccccc';
+          ctx.font = '12px monospace';
           ctx.fillText(`Carrying: ${worker.carrying} x${worker.carryAmount}`, leftX, textY);
           textY += 16;
+        }
+
+        // [Assign to Building] button (always shown for adult workers)
+        if (!citizen.isChild) {
+          textY += 6;
+          const btnX = leftX;
+          const btnY = textY;
+          this.assignBtnRect = { x: btnX, y: btnY, w: BTN_WIDTH, h: BTN_HEIGHT };
+
+          ctx.strokeStyle = '#44cc66';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(btnX, btnY, BTN_WIDTH, BTN_HEIGHT);
+          ctx.fillStyle = 'rgba(40, 80, 50, 0.6)';
+          ctx.fillRect(btnX, btnY, BTN_WIDTH, BTN_HEIGHT);
+          ctx.fillStyle = '#88ff88';
+          ctx.font = 'bold 11px monospace';
+          ctx.fillText('Assign to Bldg', btnX + 6, btnY + 15);
+          textY += BTN_HEIGHT + 4;
+
+          // [Unassign] button (only shown if currently assigned)
+          if (worker.workplaceId !== null) {
+            const ubtnX = leftX;
+            const ubtnY = textY;
+            this.unassignBtnRect = { x: ubtnX, y: ubtnY, w: BTN_WIDTH, h: BTN_HEIGHT };
+
+            ctx.strokeStyle = '#cc4444';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(ubtnX, ubtnY, BTN_WIDTH, BTN_HEIGHT);
+            ctx.fillStyle = 'rgba(80, 30, 30, 0.6)';
+            ctx.fillRect(ubtnX, ubtnY, BTN_WIDTH, BTN_HEIGHT);
+            ctx.fillStyle = '#ff8888';
+            ctx.font = 'bold 11px monospace';
+            ctx.fillText('Unassign', ubtnX + 6, ubtnY + 15);
+            textY += BTN_HEIGHT + 4;
+          }
         }
       }
 
       // Family info
       const family = world.getComponent<any>(id, 'family');
       if (family) {
-        if (family.partnerId !== null) {
+        ctx.font = '12px monospace';
+        if (family.partnerId !== null && world.entityExists(family.partnerId)) {
           const partner = world.getComponent<any>(family.partnerId, 'citizen');
-          ctx.fillText(`Partner: ${partner?.name || 'Unknown'}`, leftX, textY);
+          ctx.fillStyle = '#cccccc';
+          const labelW = ctx.measureText('Partner: ').width;
+          ctx.fillText('Partner: ', leftX, textY);
+          this.drawLink(ctx, partner?.name || 'Unknown', leftX + labelW, textY, family.partnerId);
           textY += 16;
         }
         if (family.childrenIds.length > 0) {
-          ctx.fillText(`Children: ${family.childrenIds.length}`, leftX, textY);
+          ctx.fillStyle = '#cccccc';
+          ctx.font = '12px monospace';
+          const childLabel = 'Children: ';
+          const childLabelW = ctx.measureText(childLabel).width;
+          ctx.fillText(childLabel, leftX, textY);
+          let cx = leftX + childLabelW;
+          for (let i = 0; i < family.childrenIds.length; i++) {
+            const childId = family.childrenIds[i];
+            if (!world.entityExists(childId)) continue;
+            const child = world.getComponent<any>(childId, 'citizen');
+            const childName = child?.name || '?';
+            ctx.font = '12px monospace';
+            const linkW = this.drawLink(ctx, childName, cx, textY, childId);
+            cx += linkW;
+            if (i < family.childrenIds.length - 1) {
+              ctx.fillStyle = '#cccccc';
+              ctx.fillText(', ', cx, textY);
+              cx += ctx.measureText(', ').width;
+            }
+          }
           textY += 16;
         }
-        if (family.homeId !== null) {
-          ctx.fillText('Has home', leftX, textY);
+        if (family.homeId !== null && world.entityExists(family.homeId)) {
+          ctx.font = '12px monospace';
+          const homeBld = world.getComponent<any>(family.homeId, 'building');
+          const homeLabel = homeBld?.name || 'Home';
+          ctx.fillStyle = '#cccccc';
+          const hw = ctx.measureText('Home: ').width;
+          ctx.fillText('Home: ', leftX, textY);
+          this.drawLink(ctx, homeLabel, leftX + hw, textY, family.homeId);
           textY += 16;
         }
+      }
+
+      // Activity / Task
+      if (citizen.activity && citizen.activity !== 'idle') {
+        ctx.font = '12px monospace';
+        ctx.fillStyle = '#cccccc';
+        const movement = world.getComponent<any>(id, 'movement');
+        const activity = citizen.activity as string;
+
+        if (activity === 'building' && movement?.targetEntity != null && world.entityExists(movement.targetEntity)) {
+          const targetBld = world.getComponent<any>(movement.targetEntity, 'building');
+          const bldName = targetBld?.name || 'Building';
+          const labelW = ctx.measureText('Task: Construct ').width;
+          ctx.fillText('Task: Construct ', leftX, textY);
+          this.drawLink(ctx, bldName, leftX + labelW, textY, movement.targetEntity);
+        } else if (worker && worker.workplaceId != null && world.entityExists(worker.workplaceId)) {
+          const wpBld = world.getComponent<any>(worker.workplaceId, 'building');
+          const wpName = wpBld?.name || 'Workplace';
+          const actLabel = this.activityLabel(activity);
+          const labelW = ctx.measureText(`Task: ${actLabel} at `).width;
+          ctx.fillText(`Task: ${actLabel} at `, leftX, textY);
+          this.drawLink(ctx, wpName, leftX + labelW, textY, worker.workplaceId);
+        } else {
+          ctx.fillStyle = '#aaaacc';
+          ctx.fillText(`Task: ${this.activityLabel(activity)}`, leftX, textY);
+        }
+        textY += 16;
       }
 
       return;
@@ -153,15 +386,43 @@ export class InfoPanel {
 
       if (building.maxWorkers > 0) {
         const assigned = building.assignedWorkers?.length || 0;
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = '12px monospace';
         ctx.fillText(`Workers: ${assigned}/${building.maxWorkers}`, leftX, textY);
         textY += 16;
+        // List assigned worker names as clickable links
+        if (building.assignedWorkers) {
+          for (const wId of building.assignedWorkers) {
+            if (!world.entityExists(wId)) continue;
+            const wCit = world.getComponent<any>(wId, 'citizen');
+            if (!wCit) continue;
+            ctx.font = '12px monospace';
+            ctx.fillStyle = '#cccccc';
+            ctx.fillText('  ', leftX, textY);
+            this.drawLink(ctx, wCit.name, leftX + ctx.measureText('  ').width, textY, wId);
+            textY += 15;
+          }
+        }
       }
 
       // House info
       const house = world.getComponent<any>(id, 'house');
       if (house) {
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = '12px monospace';
         ctx.fillText(`Residents: ${house.residents.length}/${house.maxResidents}`, leftX, textY);
         textY += 16;
+        // List resident names as clickable links
+        for (const rId of house.residents) {
+          if (!world.entityExists(rId)) continue;
+          const rCit = world.getComponent<any>(rId, 'citizen');
+          if (!rCit) continue;
+          ctx.font = '12px monospace';
+          ctx.fillStyle = '#cccccc';
+          ctx.fillText('  ', leftX, textY);
+          this.drawLink(ctx, rCit.name, leftX + ctx.measureText('  ').width, textY, rId);
+          textY += 15;
+        }
         ctx.fillText(`Firewood: ${Math.floor(house.firewood)}`, leftX, textY);
         textY += 16;
         this.drawBar(ctx, leftX, textY, w - 20, 'Warmth', house.warmthLevel, '#ff8844');
@@ -174,6 +435,30 @@ export class InfoPanel {
         ctx.fillText(`Active: ${producer.active ? 'Yes' : 'No'}`, leftX, textY);
         textY += 16;
       }
+    }
+  }
+
+  private activityLabel(activity: string): string {
+    switch (activity) {
+      case 'starving': return 'Seeking food';
+      case 'freezing': return 'Seeking warmth';
+      case 'eating': return 'Eating';
+      case 'chatting': return 'Chatting';
+      case 'building': return 'Constructing';
+      case 'farming': return 'Farming';
+      case 'gathering': return 'Gathering';
+      case 'hunting': return 'Hunting';
+      case 'fishing': return 'Fishing';
+      case 'forestry': return 'Forestry';
+      case 'woodcutting': return 'Woodcutting';
+      case 'smithing': return 'Smithing';
+      case 'tailoring': return 'Tailoring';
+      case 'healing': return 'Healing';
+      case 'vending': return 'Vending';
+      case 'teaching': return 'Teaching';
+      case 'trading': return 'Trading';
+      case 'school': return 'At school';
+      default: return activity.charAt(0).toUpperCase() + activity.slice(1);
     }
   }
 

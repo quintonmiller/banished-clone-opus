@@ -21,6 +21,7 @@ export const TICK_DURATION = 1000 / TICK_RATE; // ms per tick
 export const TICKS_PER_SUB_SEASON = 600; // 60 game-seconds × 10 ticks/sec
 export const SUB_SEASONS_PER_YEAR = 12;
 export const TICKS_PER_YEAR = TICKS_PER_SUB_SEASON * SUB_SEASONS_PER_YEAR;
+export const DAYS_PER_YEAR = 120; // calendar days per year (30 per season)
 
 // Day/night cycle
 export const TICKS_PER_DAY = 1800; // 180 seconds = 3 minutes per full day/night cycle at 1x
@@ -68,23 +69,174 @@ export const NO_COAT_WARMTH_MULT = 2.0;      // 2x warmth decay without coat
 
 // Starting resources
 export const STARTING_RESOURCES = {
-  log: 100,
+  log: 150,
   stone: 50,
   iron: 20,
-  tool: 5,
-  coat: 5,
-  firewood: 50,
-  food: 200, // generic food for starting
+  tool: 8,
+  coat: 7,
+  firewood: 80,
+  food: 300, // enough for ~7 days while first food buildings go up
 };
+
+// Population
+export const MARRIAGE_MIN_AGE = 18;            // minimum age for marriage
+export const FERTILITY_MAX_AGE = 55;           // maximum age for conception
+export const MAX_CHILDREN_PER_COUPLE = 3;      // max children per family
+export const BIRTH_CHANCE = 0.03;              // birth chance per 100-tick check
+export const OLD_AGE_DEATH_CHANCE_PER_YEAR = 0.02; // death chance multiplier per year over OLD_AGE
+export const NEWBORN_NEEDS = 80;               // starting needs values for newborns
+export const ADULT_SPAWN_AGE_MIN = 18;         // min age for spawned adults
+export const ADULT_SPAWN_AGE_MAX = 30;         // max age for spawned adults
+export const FAMILY_CHECK_INTERVAL = 100;      // ticks between family/birth/worker checks
+
+// Pregnancy
+export const PREGNANCY_DURATION_TICKS = 5400;           // 9 sub-seasons (game months) at 600 ticks each
+export const TRIMESTER_1_END = 1800;                     // end of first trimester (ticks)
+export const TRIMESTER_2_END = 3600;                     // end of second trimester (ticks)
+export const CONCEPTION_CHANCE_PARTNER = 0.03;           // conception chance per check for partnered couples
+export const CONCEPTION_CHANCE_NON_PARTNER = 0.005;      // conception chance for non-partnered male+female in same house
+// Trimester 1 modifiers (months 1-3)
+export const T1_FOOD_DECAY_MULT = 1.15;                 // 15% more food consumption
+export const T1_ENERGY_DECAY_MULT = 1.0;                // no energy change
+export const T1_SPEED_MULT = 1.0;                       // no speed change
+// Trimester 2 modifiers (months 4-6)
+export const T2_FOOD_DECAY_MULT = 1.3;                  // 30% more food consumption
+export const T2_ENERGY_DECAY_MULT = 1.15;               // 15% faster energy drain
+export const T2_SPEED_MULT = 0.85;                      // 15% speed reduction
+// Trimester 3 modifiers (months 7-9)
+export const T3_FOOD_DECAY_MULT = 1.5;                  // 50% more food consumption
+export const T3_ENERGY_DECAY_MULT = 1.3;                // 30% faster energy drain
+export const T3_SPEED_MULT = 0.65;                      // 35% speed reduction
+export const PREGNANT_MEAL_THRESHOLD_BOOST = 10;         // pregnant women seek food 10 points earlier
+
+// Nomads
+export const NOMAD_CHECK_INTERVAL = 500;       // ticks between nomad arrival checks
+export const NOMAD_BASE_CHANCE = 0.01;         // chance per check (~once every ~1-2 years)
+export const NOMAD_DISEASE_CHANCE = 0.15;      // 15% chance nomads bring disease
+export const NOMAD_MIN_COUNT = 2;              // min nomads per arrival
+export const NOMAD_MAX_COUNT = 5;              // max nomads per arrival
+export const NOMAD_EDGE_MARGIN = 20;           // min distance from map corners for spawn
+export const NOMAD_SPAWN_SEARCH_RADIUS = 10;   // search radius for walkable spawn tile
+export const NOMAD_SCATTER_RANGE = 2;          // random offset between individual nomads
+
+// Citizen AI
+export const AI_TICK_INTERVAL = 5;             // AI runs every N ticks
+export const STUCK_THRESHOLD = 50;             // AI cycles before forced wander
+export const FREEZING_WARMTH_THRESHOLD = 25;   // warmth level that triggers "freezing"
+export const EMERGENCY_SLEEP_ENERGY = 5;       // energy below which homeless citizens sleep anywhere
+export const CHAT_HAPPINESS_GAIN = 0.5;        // happiness gained from chatting
+export const HOME_WARMTH_GAIN = 0.1;           // warmth restored per tick at home
+
+// Wander behavior
+export const WANDER_ATTEMPTS = 3;              // pathfinding attempts for normal wander
+export const WANDER_RANGE = 6;                 // max tile offset for normal wander
+export const FORCE_WANDER_ATTEMPTS = 8;        // pathfinding attempts for forced wander
+export const FORCE_WANDER_RANGE = 15;          // max tile offset for forced wander
+export const FORCE_WANDER_MIN_DIST = 3;        // minimum wander distance for forced wander
+export const CITIZEN_SPAWN_OFFSET = 3;         // random offset when spawning starting citizens
+
+// Construction
+// Formula: ticks = constructionWork / (numWorkers * CONSTRUCTION_WORK_RATE)
+// At 1800 ticks/day: a house (250 work) with 3 workers = 2778 ticks ≈ 1.5 days
+export const CONSTRUCTION_WORK_RATE = 0.03;    // base work per tick per worker
+export const EDUCATED_CONSTRUCTION_BONUS = 0.015; // extra work rate per educated worker
+export const INITIAL_HOUSE_WARMTH = 50;        // warmth level when house is first built
 
 // Production
 export const EDUCATION_BONUS = 1.5;
+export const FOREST_EFFICIENCY_DIVISOR = 50;   // forestCount / this = efficiency (max 1)
+
+// Needs thresholds
+export const SLEEP_FOOD_DECAY_MULT = 0.5;      // food decays at half rate while sleeping
+export const WARM_WEATHER_TEMP = 15;            // temperature above which warmth recovers
+export const WARM_WEATHER_RECOVERY = 0.02;      // warmth recovery per tick in warm weather
+export const COLD_WARMTH_DIVISOR = 10;          // temperature divisor for cold warmth multiplier
+export const HOUSE_WARMTH_THRESHOLD = 30;       // min house warmth to reduce citizen warmth decay
+export const HOUSE_WARMTH_DECAY_MULT = 0.2;     // warmth decay multiplier when in warm house
+export const HOUSE_WARMTH_RECOVERY = 0.05;      // warmth recovery per tick in warm house
+export const FREEZING_TEMP_THRESHOLD = 5;       // temperature below which freezing damages health
+export const HEALTH_REGEN_FOOD_MIN = 50;        // min food for natural health regen
+export const HEALTH_REGEN_WARMTH_MIN = 50;      // min warmth for natural health regen
+export const HEALTH_REGEN_ENERGY_MIN = 30;      // min energy for natural health regen
+export const HEALTH_REGEN_RATE = 0.005;         // natural health recovery rate per tick
+export const HERB_USE_HEALTH_THRESHOLD = 80;    // health below which herbs are used
+export const HERB_USE_CHANCE = 0.001;           // chance per tick to use an herb
+export const HERB_HEALTH_RESTORE = 10;          // health restored per herb
+export const OLD_AGE_HEALTH_DIVISOR = 20;       // health decay divisor for old age
+export const UNHAPPY_FOOD_THRESHOLD = 30;       // food below this causes unhappiness
+export const UNHAPPY_WARMTH_THRESHOLD = 30;     // warmth below this causes unhappiness
+export const UNHAPPY_HEALTH_THRESHOLD = 50;     // health below this causes unhappiness
+export const UNHAPPY_ENERGY_THRESHOLD = 15;     // energy below this causes unhappiness
+export const UNHAPPINESS_RATE = 0.01;           // happiness lost per tick when conditions are bad
+export const HAPPY_NEEDS_THRESHOLD = 70;        // food/warmth/health above this gains happiness
+export const HAPPY_ENERGY_THRESHOLD = 50;       // energy above this gains happiness
+export const HAPPINESS_GAIN_RATE = 0.005;       // happiness gained per tick when conditions are good
+
+// Storage / Houses
+export const STORAGE_CHECK_INTERVAL = 30;       // ticks between storage system checks
+export const HOUSE_FIREWOOD_MIN = 10;           // firewood below this triggers restock
+export const HOUSE_FIREWOOD_TARGET = 20;        // target firewood after restock
+export const HOUSE_WARMTH_GAIN_FROM_FIRE = 2;   // warmth gained per storage tick when burning
+export const HOUSE_FIREWOOD_CONSUMPTION = 0.05;  // firewood consumed per storage tick
+export const HOUSE_WARMTH_LOSS_NO_FIRE = 5;     // warmth lost per storage tick without firewood
+export const MARKET_HAPPINESS_GAIN = 0.5;        // happiness gained per storage tick from market
+
+// Trade
+export const MERCHANT_VISIT_INTERVAL_MULT = 0.8; // fraction of TICKS_PER_YEAR between visits
+export const MERCHANT_ARRIVAL_CHANCE = 0.002;     // chance per tick once interval passed
+export const MERCHANT_WARES_COUNT = 3;            // number of different wares merchant brings
+export const MERCHANT_WARES_MIN = 20;             // min quantity per ware type
+export const MERCHANT_WARES_MAX = 80;             // max quantity per ware type
+export const MERCHANT_WANTS_COUNT = 2;            // number of resource types merchant wants
+export const MERCHANT_WANTS_MIN = 30;             // min quantity merchant wants
+export const MERCHANT_WANTS_MAX = 100;            // max quantity merchant wants
+export const MERCHANT_STAY_DURATION = 600;        // ticks merchant stays (~60 seconds)
+
+// Environment
+export const ENVIRONMENT_TILES_PER_TICK = 200;    // tiles scanned per tick for regrowth
+export const MAX_TREE_DENSITY = 5;                // maximum tree density level
+export const FOREST_GROWTH_CHANCE = 0.0002;       // chance per tile per tick for density increase
+export const BUILDING_DECAY_CHECK_INTERVAL = 10;  // ticks between building decay checks
+
+// Disease (additional)
+export const DISEASE_TICK_INTERVAL = 5;           // disease system runs every N ticks
+export const DISEASE_ENERGY_DRAIN = 0.02;         // energy drained per tick while sick
+export const DISEASE_MALNUTRITION_THRESHOLD = 30; // food below this multiplies disease chance
+export const DISEASE_MALNUTRITION_MULT = 3;       // disease chance multiplier when malnourished
+export const DISEASE_COLD_THRESHOLD = 30;         // warmth below this multiplies disease chance
+export const DISEASE_COLD_MULT = 2;               // disease chance multiplier when cold
+export const DISEASE_WEAK_THRESHOLD = 50;         // health below this multiplies disease chance
+export const DISEASE_WEAK_MULT = 2;               // disease chance multiplier when unhealthy
+
+// Weather (additional)
+export const STORM_WARMTH_DRAIN = 0.05;           // extra warmth drain per tick during storm (outdoor)
+export const HARSH_WINTER_WARMTH_DRAIN = 0.03;    // extra warmth drain per tick during harsh winter
+export const STORM_CROP_WEATHER_MULT = 0.5;       // crop growth multiplier during storm
 
 // Map generation
 export const FOREST_DENSITY = 0.35;
 export const STONE_DEPOSIT_CHANCE = 0.02;
 export const IRON_DEPOSIT_CHANCE = 0.01;
 export const RIVER_WIDTH = 3;
+export const ELEVATION_NOISE_SCALE = 60;           // noise scale for elevation
+export const MOISTURE_NOISE_SCALE = 40;            // noise scale for moisture
+export const FOREST_NOISE_SCALE = 30;              // noise scale for forest distribution
+export const WATER_ELEVATION_THRESHOLD = 0.25;     // elevation below this is water
+export const FOREST_ELEVATION_MIN = 0.3;           // min elevation for forest
+export const FERTILE_MOISTURE_THRESHOLD = 0.55;    // moisture above this is fertile ground
+export const STONE_ELEVATION_THRESHOLD = 0.6;      // min elevation for stone/iron deposits
+export const START_AREA_RADIUS = 10;               // tiles to clear around starting position
+export const RIVER_START_POSITION = 0.3;           // fraction of map width for river X
+export const RIVER_START_OFFSET = 20;              // random offset range for river start
+export const START_LOCATION_SEARCH_RADIUS = 20;    // max search radius for starting location
+
+// Particles
+export const MAX_PARTICLES = 300;
+export const PARTICLE_SPAWN_INTERVAL = 3;          // spawn new particles every N ticks
+export const SMOKE_SPAWN_CHANCE = 0.3;             // chance per house per spawn interval
+export const SMOKE_MIN_WARMTH = 20;                // min house warmth to produce smoke
+export const SNOW_PARTICLES_PER_SPAWN = 3;         // snow particles spawned per interval
+export const LEAF_SPAWN_CHANCE = 0.3;              // chance per spawn interval for falling leaves
 
 // Pathfinding
 export const PATH_CACHE_SIZE = 64;
@@ -131,7 +283,7 @@ export const HERBALIST_CURE_CHANCE = 0.005;     // chance per tick to cure a sic
 export const DISEASE_IMMUNITY_TICKS = 5000;     // ticks of immunity after recovery
 
 // Food spoilage & diet variety
-export const FOOD_SPOILAGE_RATE = 0.002;        // fraction of food lost per spoilage tick (every 30 ticks)
+export const FOOD_SPOILAGE_RATE = 0.001;        // fraction of food lost per spoilage tick (every 30 ticks)
 export const BARN_SPOILAGE_MULT = 0.2;          // barns reduce spoilage to 20%
 export const DIET_HISTORY_SIZE = 10;            // number of recent meals to track
 export const DIET_VARIETY_THRESHOLD = 3;        // unique food types needed for bonus
@@ -140,9 +292,9 @@ export const DIET_MONOTONY_HAPPINESS = -0.005;  // happiness change per tick wit
 
 // Resource depletion & regrowth
 export const TREE_CONSUME_AMOUNT = 1;          // trees consumed from tile per production cycle
-export const FORESTER_REPLANT_TICKS = 200;     // ticks between forester planting a new tree
+export const FORESTER_REPLANT_TICKS = 600;     // worker-ticks between replanting (~2h game time with 4 workers)
 export const NATURAL_REGROWTH_CHANCE = 0.00002; // chance per tick per grass tile near forest to sprout
-export const TREE_GROWTH_TICKS = 500;          // ticks for a tree to grow one density level (1→2, etc.)
+export const TREE_GROWTH_TICKS = 3000;         // worker-ticks per density level (~half a year with 4 workers)
 export const STONE_DEPOSIT_AMOUNT = 50;        // starting amount in each stone deposit tile
 export const IRON_DEPOSIT_AMOUNT = 30;         // starting amount in each iron deposit tile
 
@@ -154,6 +306,13 @@ export const HUD_HEIGHT = 40;
 export const BUILD_MENU_HEIGHT = 180;
 export const INFO_PANEL_WIDTH = 250;
 export const MINIMAP_SIZE = 160;
+
+// Event Log
+export const EVENT_LOG_WIDTH = 300;
+export const EVENT_LOG_MAX_ENTRIES = 200;
+export const EVENT_LOG_VISIBLE_ROWS = 12;
+export const EVENT_LOG_ROW_HEIGHT = 18;
+export const EVENT_LOG_HEADER_HEIGHT = 24;
 
 // Speed multipliers
 export const SPEED_OPTIONS = [0, 1, 2, 5, 10];

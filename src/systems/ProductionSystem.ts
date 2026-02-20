@@ -5,6 +5,7 @@ import {
   EDUCATION_BONUS, BuildingType, ResourceType,
   NO_TOOL_PRODUCTION_MULT, TOOL_WEAR_PER_TICK,
   FORESTER_REPLANT_TICKS, TREE_GROWTH_TICKS,
+  FOREST_EFFICIENCY_DIVISOR,
 } from '../constants';
 
 export class ProductionSystem {
@@ -87,7 +88,7 @@ export class ProductionSystem {
         const radius = bld.workRadius || 30;
 
         const forestCount = this.game.tileMap.countForestInRadius(cx, cy, radius);
-        efficiency *= Math.min(1, forestCount / 50);
+        efficiency *= Math.min(1, forestCount / FOREST_EFFICIENCY_DIVISOR);
       }
 
       if (efficiency <= 0) continue;
@@ -162,6 +163,14 @@ export class ProductionSystem {
       timers.grow = 0;
       this.game.tileMap.growTreesInRadius(cx, cy, radius);
     }
+  }
+
+  getInternalState(): { foresterTimers: [number, { replant: number; grow: number }][] } {
+    return { foresterTimers: [...this.foresterTimers] };
+  }
+
+  setInternalState(s: { foresterTimers: [number, { replant: number; grow: number }][] }): void {
+    this.foresterTimers = new Map(s.foresterTimers);
   }
 
   private buildingNeedsTools(type: string): boolean {

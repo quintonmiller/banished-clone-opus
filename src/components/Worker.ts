@@ -7,4 +7,5 @@ export interface WorkerComponent {
   carrying: ResourceType | null;
   carryAmount: number;
   task: string | null;
+  manuallyAssigned: boolean;
 }

@@ -81,4 +81,19 @@ export interface GameState {
   isDusk: boolean;
   isDawn: boolean;
   nightAlpha: number;   // 0..1 darkness level for rendering
+  // Worker assignment mode
+  assigningWorker: EntityId | null;
+}
+
+export interface EventLogEntry {
+  id: number;
+  tick: number;
+  year: number;
+  subSeason: number;
+  category: string;
+  text: string;
+  color: string;
+  entityId?: number;
+  tileX?: number;
+  tileY?: number;
 }

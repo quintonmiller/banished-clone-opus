@@ -31,7 +31,8 @@ export class MovementSystem {
 
       // Apply terrain speed modifier based on current tile
       const terrainMult = this.tileMap.getSpeedMultiplier(pos.tileX, pos.tileY);
-      const speed = (mov.speed || CITIZEN_SPEED) * terrainMult * TILE_SIZE / TICK_RATE;
+      const speedMod = mov.speedModifier ?? 1.0;
+      const speed = (mov.speed || CITIZEN_SPEED) * terrainMult * speedMod * TILE_SIZE / TICK_RATE;
 
       if (dist <= speed) {
         // Arrived at next path node

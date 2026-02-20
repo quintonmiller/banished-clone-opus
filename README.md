@@ -22,7 +22,7 @@ npm run preview
 
 ## How to Play
 
-You start with 5 adults, 2 children, and a small stockpile of resources. Place buildings, assign workers, and manage food and firewood to keep your settlement alive through the seasons.
+You start with 5 adults, 2 children, and a modest stockpile of resources (150 logs, 50 stone, 300 food, and basic supplies). Place buildings, assign workers, and manage food and firewood to keep your settlement alive through the seasons.
 
 There is no win condition — it's a sandbox survival game. The challenge is avoiding the **death spiral**: resource shortages lead to deaths, which mean fewer workers, which deepens the shortage.
 
@@ -42,11 +42,12 @@ There is no win condition — it's a sandbox survival game. The challenge is avo
 
 ### Tips
 
-- Build a **Gathering Hut** near forest for early food — it works year-round (unlike farms).
-- Build a **Wood Cutter** and assign a worker immediately — firewood keeps houses warm in winter.
-- Don't overbuild. Each building takes workers away from production.
-- Watch food reserves heading into winter. Crops don't grow in cold months.
-- Build a **Forester Lodge** to sustain nearby forest tiles that gathering huts depend on.
+- Build a **Gathering Hut** near forest first — it's your most reliable early food source and works year-round (unlike farms).
+- Construction takes real time — a Gathering Hut takes about half a day with your full crew, a house takes almost a full day. Plan accordingly.
+- Build a **Wood Cutter** early — firewood keeps houses warm in winter and citizens will freeze without it.
+- Don't overbuild. Each building takes workers away from food production, and construction ties up laborers for hours or days.
+- Watch food reserves heading into winter. Crops don't grow in cold months, and you'll need stockpiled food to survive.
+- Build a **Forester Lodge** to sustain nearby forest tiles that gathering huts depend on. Trees take time to regrow.
 
 ## Features
 
@@ -88,6 +89,13 @@ There is no win condition — it's a sandbox survival game. The challenge is avo
 - **Disease** — malnourished citizens get sick; illness spreads; Herbalists cure nearby sick citizens
 - **Weather events** — storms damage buildings and crops, droughts halt crop growth, cold snaps increase warmth drain
 
+### Game Balance
+All gameplay values are centralized in config files for easy tuning:
+- `src/constants.ts` — core tuning values (timing, needs, construction, AI, etc.)
+- `src/data/BuildingDefs.ts` — per-building costs, sizes, and construction times
+- `src/data/RecipeDefs.ts` — production recipes, cooldowns, and yields
+- `src/data/SeasonDefs.ts` — seasonal temperature, crop growth, and gathering rates
+
 ### Other Systems
 - Nomad arrivals bring new citizens (and sometimes disease)
 - Merchant traders visit the Trading Post for resource bartering
@@ -97,7 +105,7 @@ There is no win condition — it's a sandbox survival game. The challenge is avo
 
 ## Architecture
 
-Lightweight Entity Component System (ECS) with 13 game systems, all rendered on a single HTML5 Canvas. Fixed-timestep simulation at 10 ticks/sec with variable-rate rendering. See [CLAUDE.md](CLAUDE.md) for technical details.
+Lightweight Entity Component System (ECS) with 13 game systems, all rendered on a single HTML5 Canvas. Fixed-timestep simulation at 10 ticks/sec with variable-rate rendering. All gameplay values are data-driven through centralized config files. See [CLAUDE.md](CLAUDE.md) for technical details.
 
 ## License
 

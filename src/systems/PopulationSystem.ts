@@ -1,10 +1,14 @@
 import type { Game } from '../Game';
-import { TICKS_PER_YEAR, CHILD_AGE, OLD_AGE, TILE_SIZE, Profession, CITIZEN_SPEED, BuildingType, MAP_WIDTH, MAP_HEIGHT } from '../constants';
-
-// Nomad arrival interval: roughly every 2-4 game years
-const NOMAD_CHECK_INTERVAL = 500; // ticks between checks
-const NOMAD_BASE_CHANCE = 0.01;   // chance per check (~once every ~1-2 years)
-const NOMAD_DISEASE_CHANCE = 0.15; // 15% chance nomads bring disease
+import {
+  TICKS_PER_YEAR, CHILD_AGE, OLD_AGE, TILE_SIZE, Profession, CITIZEN_SPEED,
+  BuildingType, MAP_WIDTH, MAP_HEIGHT,
+  NOMAD_CHECK_INTERVAL, NOMAD_BASE_CHANCE, NOMAD_DISEASE_CHANCE,
+  NOMAD_MIN_COUNT, NOMAD_MAX_COUNT, NOMAD_EDGE_MARGIN, NOMAD_SPAWN_SEARCH_RADIUS,
+  NOMAD_SCATTER_RANGE, MARRIAGE_MIN_AGE, FERTILITY_MAX_AGE, MAX_CHILDREN_PER_COUPLE,
+  OLD_AGE_DEATH_CHANCE_PER_YEAR, NEWBORN_NEEDS, ADULT_SPAWN_AGE_MIN,
+  ADULT_SPAWN_AGE_MAX, FAMILY_CHECK_INTERVAL,
+  PREGNANCY_DURATION_TICKS, CONCEPTION_CHANCE_PARTNER, CONCEPTION_CHANCE_NON_PARTNER,
+} from '../constants';
 
 export class PopulationSystem {
   private game: Game;
@@ -22,19 +26,30 @@ export class PopulationSystem {
       this.ageCitizens();
     }
 
-    // Family formation + births: check every 100 ticks
-    if (this.tickCounter % 100 === 0) {
+    // Family formation + conception: check periodically
+    if (this.tickCounter % FAMILY_CHECK_INTERVAL === 0) {
       this.formFamilies();
-      this.checkBirths();
+      this.checkConception();
       this.assignHomes();
       this.autoAssignWorkers();
       this.educateChildren();
     }
 
+    // Pregnancy progression runs every tick
+    this.advancePregnancies();
+
     // Nomad arrivals
     if (this.tickCounter % NOMAD_CHECK_INTERVAL === 0 && this.tickCounter > TICKS_PER_YEAR) {
       this.checkNomadArrival();
     }
+  }
+
+  getInternalState(): { tickCounter: number } {
+    return { tickCounter: this.tickCounter };
+  }
+
+  setInternalState(s: { tickCounter: number }): void {
+    this.tickCounter = s.tickCounter;
   }
 
   private ageCitizens(): void {
@@ -56,13 +71,14 @@ export class PopulationSystem {
             carrying: null,
             carryAmount: 0,
             task: null,
+            manuallyAssigned: false,
           });
         }
       }
 
       // Old age death chance
       if (cit.age > OLD_AGE) {
-        const deathChance = (cit.age - OLD_AGE) * 0.02;
+        const deathChance = (cit.age - OLD_AGE) * OLD_AGE_DEATH_CHANCE_PER_YEAR;
         if (this.game.rng.chance(deathChance)) {
           const needs = world.getComponent<any>(id, 'needs');
           if (needs) needs.health = 0; // Will be cleaned up by NeedsSystem
@@ -81,7 +97,7 @@ export class PopulationSystem {
       const cit = world.getComponent<any>(id, 'citizen')!;
       const fam = world.getComponent<any>(id, 'family')!;
 
-      if (!cit.isChild && cit.age >= 16 && fam.partnerId === null) {
+      if (!cit.isChild && cit.age >= MARRIAGE_MIN_AGE && fam.partnerId === null) {
         singles.push({ id, isMale: cit.isMale });
       }
     }
@@ -89,56 +105,143 @@ export class PopulationSystem {
     const males = singles.filter(s => s.isMale);
     const females = singles.filter(s => !s.isMale);
 
-    const pairs = Math.min(males.length, females.length);
-    for (let i = 0; i < pairs; i++) {
-      const maleId = males[i].id;
-      const femaleId = females[i].id;
+    // Try to pair each male with a non-related female
+    const pairedFemales = new Set<number>();
+    for (const male of males) {
+      for (const female of females) {
+        if (pairedFemales.has(female.id)) continue;
+        if (this.areRelated(male.id, female.id)) continue;
 
-      const maleFam = world.getComponent<any>(maleId, 'family')!;
-      const femaleFam = world.getComponent<any>(femaleId, 'family')!;
+        const maleFam = world.getComponent<any>(male.id, 'family')!;
+        const femaleFam = world.getComponent<any>(female.id, 'family')!;
 
-      maleFam.partnerId = femaleId;
-      femaleFam.partnerId = maleId;
+        maleFam.partnerId = female.id;
+        femaleFam.partnerId = male.id;
+        pairedFemales.add(female.id);
+        break;
+      }
     }
   }
 
-  private checkBirths(): void {
+  /** Check if two citizens are related (parent-child or siblings) */
+  private areRelated(idA: number, idB: number): boolean {
     const world = this.game.world;
-    const citizens = world.query('citizen', 'family', 'position');
+    const famA = world.getComponent<any>(idA, 'family');
+    const famB = world.getComponent<any>(idB, 'family');
+    if (!famA || !famB) return false;
 
-    for (const id of citizens) {
-      const cit = world.getComponent<any>(id, 'citizen')!;
-      const fam = world.getComponent<any>(id, 'family')!;
+    // Parent-child: A is parent of B
+    if (famA.childrenIds.includes(idB)) return true;
+    // Parent-child: B is parent of A
+    if (famB.childrenIds.includes(idA)) return true;
 
-      // Only females can give birth
-      if (cit.isMale || cit.isChild) continue;
-      if (fam.partnerId === null) continue;
-      if (fam.childrenIds.length >= 3) continue; // Max 3 children per couple
-
-      // Birth chance per check
-      if (this.game.rng.chance(0.03)) {
-        // Check if family has a home
-        if (fam.homeId === null) continue;
-
-        const house = world.getComponent<any>(fam.homeId, 'house');
-        if (!house) continue;
-        if (house.residents.length >= house.maxResidents) continue;
-
-        // Create baby
-        const pos = world.getComponent<any>(id, 'position')!;
-        const baby = this.spawnCitizen(pos.tileX, pos.tileY, true);
-
-        fam.childrenIds.push(baby);
-        house.residents.push(baby);
-
-        // Set baby's home
-        const babyFam = world.getComponent<any>(baby, 'family');
-        if (babyFam) babyFam.homeId = fam.homeId;
-
-        this.game.state.totalBirths++;
-        this.game.eventBus.emit('citizen_born', { id: baby });
+    // Siblings: share a parent (either is listed as child of the same parent)
+    const families = world.getComponentStore<any>('family');
+    if (families) {
+      for (const [, fam] of families) {
+        if (fam.childrenIds.includes(idA) && fam.childrenIds.includes(idB)) {
+          return true;
+        }
       }
     }
+
+    return false;
+  }
+
+  private checkConception(): void {
+    const world = this.game.world;
+    const citizens = world.query('citizen', 'family');
+
+    for (const femaleId of citizens) {
+      const cit = world.getComponent<any>(femaleId, 'citizen')!;
+      const fam = world.getComponent<any>(femaleId, 'family')!;
+
+      // Only non-pregnant adult females of fertile age
+      if (cit.isMale || cit.isChild) continue;
+      if (cit.age < MARRIAGE_MIN_AGE || cit.age > FERTILITY_MAX_AGE) continue;
+      if (fam.isPregnant) continue;
+      if (fam.childrenIds.length >= MAX_CHILDREN_PER_COUPLE) continue;
+      if (fam.homeId === null) continue;
+
+      // Female must be sleeping
+      if (!cit.isSleeping) continue;
+
+      // Find a male sleeping in the same building (valid age, not related)
+      const maleId = this.findMaleSleepingInSameHome(femaleId, fam.homeId);
+      if (maleId === null) continue;
+
+      // Determine conception chance based on partnership
+      const isPartner = fam.partnerId === maleId;
+      const chance = isPartner ? CONCEPTION_CHANCE_PARTNER : CONCEPTION_CHANCE_NON_PARTNER;
+
+      if (this.game.rng.chance(chance)) {
+        fam.isPregnant = true;
+        fam.pregnancyTicks = 0;
+        fam.pregnancyPartnerId = maleId;
+        this.game.eventBus.emit('citizen_pregnant', { id: femaleId, fatherId: maleId });
+      }
+    }
+  }
+
+  private findMaleSleepingInSameHome(femaleId: number, homeId: number): number | null {
+    const world = this.game.world;
+    const house = world.getComponent<any>(homeId, 'house');
+    if (!house?.residents) return null;
+
+    for (const residentId of house.residents) {
+      if (residentId === femaleId) continue;
+      const cit = world.getComponent<any>(residentId, 'citizen');
+      if (!cit || !cit.isMale || cit.isChild) continue;
+      if (!cit.isSleeping) continue;
+      // Must be of valid age and not related
+      if (cit.age < MARRIAGE_MIN_AGE || cit.age > FERTILITY_MAX_AGE) continue;
+      if (this.areRelated(femaleId, residentId)) continue;
+      return residentId;
+    }
+    return null;
+  }
+
+  private advancePregnancies(): void {
+    const world = this.game.world;
+    const families = world.getComponentStore<any>('family');
+    if (!families) return;
+
+    for (const [femaleId, fam] of families) {
+      if (!fam.isPregnant) continue;
+
+      fam.pregnancyTicks = (fam.pregnancyTicks || 0) + 1;
+
+      if (fam.pregnancyTicks >= PREGNANCY_DURATION_TICKS) {
+        this.giveBirth(femaleId, fam);
+      }
+    }
+  }
+
+  private giveBirth(femaleId: number, fam: any): void {
+    const world = this.game.world;
+    const pos = world.getComponent<any>(femaleId, 'position');
+    if (!pos) return;
+
+    const baby = this.spawnCitizen(pos.tileX, pos.tileY, true);
+    fam.childrenIds.push(baby);
+
+    // Add baby to house if there's room
+    if (fam.homeId !== null) {
+      const house = world.getComponent<any>(fam.homeId, 'house');
+      if (house && house.residents.length < house.maxResidents) {
+        house.residents.push(baby);
+        const babyFam = world.getComponent<any>(baby, 'family');
+        if (babyFam) babyFam.homeId = fam.homeId;
+      }
+    }
+
+    // Reset pregnancy state
+    fam.isPregnant = false;
+    fam.pregnancyTicks = 0;
+    fam.pregnancyPartnerId = null;
+
+    this.game.state.totalBirths++;
+    this.game.eventBus.emit('citizen_born', { id: baby, motherId: femaleId });
   }
 
   private spawnCitizen(tileX: number, tileY: number, isChild: boolean): number {
@@ -157,7 +260,7 @@ export class PopulationSystem {
 
     world.addComponent(id, 'citizen', {
       name: isMale ? this.game.rng.pick(maleNames) : this.game.rng.pick(femaleNames),
-      age: isChild ? 1 : this.game.rng.int(18, 30),
+      age: isChild ? 1 : this.game.rng.int(ADULT_SPAWN_AGE_MIN, ADULT_SPAWN_AGE_MAX),
       isMale,
       isChild,
       isEducated: false,
@@ -172,11 +275,11 @@ export class PopulationSystem {
     });
 
     world.addComponent(id, 'needs', {
-      food: 80,
+      food: NEWBORN_NEEDS,
       warmth: 100,
       health: 100,
-      happiness: 80,
-      energy: 80,
+      happiness: NEWBORN_NEEDS,
+      energy: NEWBORN_NEEDS,
       recentDiet: [],
     });
 
@@ -184,6 +287,9 @@ export class PopulationSystem {
       partnerId: null,
       childrenIds: [],
       homeId: null,
+      isPregnant: false,
+      pregnancyTicks: 0,
+      pregnancyPartnerId: null,
     });
 
     world.addComponent(id, 'renderable', {
@@ -200,6 +306,7 @@ export class PopulationSystem {
         carrying: null,
         carryAmount: 0,
         task: null,
+        manuallyAssigned: false,
       });
     }
 
@@ -263,6 +370,7 @@ export class PopulationSystem {
       for (const [wId, worker] of workers) {
         if (worker.workplaceId !== null) continue;
         if (worker.profession !== Profession.LABORER) continue;
+        if (worker.manuallyAssigned) continue;
 
         const cit = world.getComponent<any>(wId, 'citizen');
         if (!cit || cit.isChild) continue;
@@ -333,20 +441,20 @@ export class PopulationSystem {
 
     if (!this.game.rng.chance(chance)) return;
 
-    // Spawn 2-5 nomads near map edge
-    const count = this.game.rng.int(2, 5);
+    // Spawn nomads near map edge
+    const count = this.game.rng.int(NOMAD_MIN_COUNT, NOMAD_MAX_COUNT);
     const edge = this.game.rng.int(0, 3); // 0=top, 1=right, 2=bottom, 3=left
     let sx: number, sy: number;
 
     switch (edge) {
-      case 0: sx = this.game.rng.int(20, MAP_WIDTH - 20); sy = 5; break;
-      case 1: sx = MAP_WIDTH - 5; sy = this.game.rng.int(20, MAP_HEIGHT - 20); break;
-      case 2: sx = this.game.rng.int(20, MAP_WIDTH - 20); sy = MAP_HEIGHT - 5; break;
-      default: sx = 5; sy = this.game.rng.int(20, MAP_HEIGHT - 20); break;
+      case 0: sx = this.game.rng.int(NOMAD_EDGE_MARGIN, MAP_WIDTH - NOMAD_EDGE_MARGIN); sy = 5; break;
+      case 1: sx = MAP_WIDTH - 5; sy = this.game.rng.int(NOMAD_EDGE_MARGIN, MAP_HEIGHT - NOMAD_EDGE_MARGIN); break;
+      case 2: sx = this.game.rng.int(NOMAD_EDGE_MARGIN, MAP_WIDTH - NOMAD_EDGE_MARGIN); sy = MAP_HEIGHT - 5; break;
+      default: sx = 5; sy = this.game.rng.int(NOMAD_EDGE_MARGIN, MAP_HEIGHT - NOMAD_EDGE_MARGIN); break;
     }
 
     // Find walkable tile near the edge point
-    for (let r = 0; r < 10; r++) {
+    for (let r = 0; r < NOMAD_SPAWN_SEARCH_RADIUS; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (this.game.tileMap.isWalkable(sx + dx, sy + dy)) {
@@ -360,8 +468,8 @@ export class PopulationSystem {
 
     const nomadIds: number[] = [];
     for (let i = 0; i < count; i++) {
-      const ox = this.game.rng.int(-2, 2);
-      const oy = this.game.rng.int(-2, 2);
+      const ox = this.game.rng.int(-NOMAD_SCATTER_RANGE, NOMAD_SCATTER_RANGE);
+      const oy = this.game.rng.int(-NOMAD_SCATTER_RANGE, NOMAD_SCATTER_RANGE);
       const nx = Math.max(1, Math.min(MAP_WIDTH - 2, sx + ox));
       const ny = Math.max(1, Math.min(MAP_HEIGHT - 2, sy + oy));
       const nomadId = this.spawnCitizen(nx, ny, false);
@@ -390,7 +498,7 @@ export class PopulationSystem {
     return false;
   }
 
-  private getProfessionForBuilding(type: string): string {
+  getProfessionForBuilding(type: string): string {
     const map: Record<string, string> = {
       [BuildingType.CROP_FIELD]: Profession.FARMER,
       [BuildingType.GATHERING_HUT]: Profession.GATHERER,

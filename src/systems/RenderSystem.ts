@@ -1,7 +1,8 @@
 import { Camera } from '../map/Camera';
 import { TileMap } from '../map/TileMap';
-import { TileType, TILE_SIZE, HUD_HEIGHT } from '../constants';
+import { TileType, TILE_SIZE, HUD_HEIGHT, TICKS_PER_SUB_SEASON, TICKS_PER_YEAR, DAYS_PER_YEAR } from '../constants';
 import { GameState, EntityId } from '../types';
+import { Settings } from '../Settings';
 
 // Tile colors
 const TILE_COLORS: Record<number, string> = {
@@ -61,14 +62,15 @@ export class RenderSystem {
     _interp: number,
     state: GameState,
     entityData?: {
-      citizens: Array<{ id: EntityId; x: number; y: number; isMale: boolean; isChild: boolean; health: number; isSleeping: boolean; isSick: boolean; isChatting: boolean }>;
+      citizens: Array<{ id: EntityId; x: number; y: number; isMale: boolean; isChild: boolean; health: number; isSleeping: boolean; isSick: boolean; isChatting: boolean; activity: string; isPregnant: boolean }>;
       buildings: Array<{
         id: EntityId; x: number; y: number; w: number; h: number;
         category: string; completed: boolean; progress: number; name: string;
-        type?: string;
+        type?: string; isValidTarget?: boolean; isFullOrInvalid?: boolean;
       }>;
       ghosts?: Array<{ x: number; y: number; w: number; h: number; valid: boolean }>;
       drawParticles?: (ctx: CanvasRenderingContext2D) => void;
+      selectedPath?: Array<{ x: number; y: number }>;
     },
   ): void {
     const ctx = this.ctx;
@@ -102,6 +104,11 @@ export class RenderSystem {
         ctx.strokeRect(g.x * TILE_SIZE, g.y * TILE_SIZE, g.w * TILE_SIZE, g.h * TILE_SIZE);
         ctx.globalAlpha = 1;
       }
+    }
+
+    // Draw selected citizen's path
+    if (entityData?.selectedPath && entityData.selectedPath.length >= 2) {
+      this.drawPath(ctx, entityData.selectedPath);
     }
 
     // Draw citizens
@@ -233,7 +240,7 @@ export class RenderSystem {
 
   private drawBuilding(
     ctx: CanvasRenderingContext2D,
-    b: { x: number; y: number; w: number; h: number; category: string; completed: boolean; progress: number; name: string },
+    b: { x: number; y: number; w: number; h: number; category: string; completed: boolean; progress: number; name: string; isValidTarget?: boolean; isFullOrInvalid?: boolean },
   ): void {
     const px = b.x * TILE_SIZE;
     const py = b.y * TILE_SIZE;
@@ -260,11 +267,42 @@ export class RenderSystem {
       ctx.lineWidth = 1;
       ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
     }
+
+    // Assignment mode highlights
+    if (b.isValidTarget) {
+      ctx.strokeStyle = '#00ff66';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(px - 1, py - 1, pw + 2, ph + 2);
+    } else if (b.isFullOrInvalid) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
+    }
   }
+
+  private static readonly ACTIVITY_ICONS: Record<string, { symbol: string; color: string }> = {
+    starving:    { symbol: '!',  color: '#ff3333' },
+    freezing:    { symbol: '*',  color: '#66ddff' },
+    eating:      { symbol: 'E',  color: '#ffaa33' },
+    building:    { symbol: 'B',  color: '#ffaa00' },
+    woodcutting: { symbol: 'W',  color: '#cc8844' },
+    farming:     { symbol: 'F',  color: '#44bb44' },
+    gathering:   { symbol: 'G',  color: '#88aa44' },
+    hunting:     { symbol: 'H',  color: '#cc5544' },
+    fishing:     { symbol: 'F',  color: '#4499dd' },
+    forestry:    { symbol: 'T',  color: '#228844' },
+    smithing:    { symbol: 'S',  color: '#aaaaaa' },
+    tailoring:   { symbol: 'T',  color: '#aa66cc' },
+    healing:     { symbol: '+',  color: '#44dd44' },
+    vending:     { symbol: 'V',  color: '#ddaa44' },
+    teaching:    { symbol: 'T',  color: '#dddddd' },
+    trading:     { symbol: '$',  color: '#dddd44' },
+    school:      { symbol: 'S',  color: '#aaaadd' },
+    working:     { symbol: 'W',  color: '#cccccc' },
+  };
 
   private drawCitizen(
     ctx: CanvasRenderingContext2D,
-    c: { x: number; y: number; isMale: boolean; isChild: boolean; health: number; isSleeping: boolean; isSick: boolean; isChatting: boolean },
+    c: { x: number; y: number; isMale: boolean; isChild: boolean; health: number; isSleeping: boolean; isSick: boolean; isChatting: boolean; activity: string; isPregnant: boolean },
     selected: boolean,
   ): void {
     const px = c.x * TILE_SIZE + TILE_SIZE / 2;
@@ -304,11 +342,38 @@ export class RenderSystem {
       ctx.fillText('\u2620', px - radius - 4, py - radius - 2);
     }
 
+    // Pregnancy indicator
+    if (c.isPregnant) {
+      ctx.fillStyle = '#ffaacc';
+      ctx.font = 'bold 9px monospace';
+      ctx.fillText('\u2764', px + radius + 1, py - radius - 6);
+    }
+
     // Chat bubble
     if (c.isChatting) {
       ctx.fillStyle = '#ffffff';
       ctx.font = '9px monospace';
       ctx.fillText('...', px + radius + 2, py - radius - 1);
+    }
+
+    // Activity indicator (shown above citizen when not sleeping/chatting/sick)
+    if (!c.isSleeping && !c.isChatting && c.activity !== 'idle') {
+      const icon = RenderSystem.ACTIVITY_ICONS[c.activity];
+      if (icon) {
+        // Draw small background pill behind the letter
+        ctx.font = 'bold 8px monospace';
+        const textW = ctx.measureText(icon.symbol).width;
+        const bgX = px - textW / 2 - 2;
+        const bgY = py - radius - 12;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.beginPath();
+        ctx.roundRect(bgX, bgY, textW + 4, 10, 2);
+        ctx.fill();
+
+        // Draw the icon letter
+        ctx.fillStyle = icon.color;
+        ctx.fillText(icon.symbol, px - textW / 2, py - radius - 3);
+      }
     }
 
     // Selection ring
@@ -321,28 +386,63 @@ export class RenderSystem {
     }
   }
 
+  private drawPath(ctx: CanvasRenderingContext2D, path: Array<{ x: number; y: number }>): void {
+    const half = TILE_SIZE / 2;
+
+    // Draw dotted line along the path
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(path[0].x * TILE_SIZE + half, path[0].y * TILE_SIZE + half);
+    for (let i = 1; i < path.length; i++) {
+      ctx.lineTo(path[i].x * TILE_SIZE + half, path[i].y * TILE_SIZE + half);
+    }
+    ctx.stroke();
+
+    // Draw destination marker (small diamond at the end)
+    const end = path[path.length - 1];
+    const ex = end.x * TILE_SIZE + half;
+    const ey = end.y * TILE_SIZE + half;
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.moveTo(ex, ey - 5);
+    ctx.lineTo(ex + 5, ey);
+    ctx.lineTo(ex, ey + 5);
+    ctx.lineTo(ex - 5, ey);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   drawHUD(state: GameState, resources?: Map<string, number>, weather?: string): void {
     const ctx = this.ctx;
+    const s = Settings.get('uiScale');
 
-    // Ensure DPR base transform for HUD drawing
+    // Ensure DPR base transform for HUD drawing, then apply UI scale
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.save();
+    ctx.scale(s, s);
+
+    const scaledW = this.logicalWidth / s;
+    const scaledH = this.logicalHeight / s;
 
     // Top bar background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(0, 0, this.logicalWidth, HUD_HEIGHT);
+    ctx.fillRect(0, 0, scaledW, HUD_HEIGHT);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '14px monospace';
 
-    const seasonNames = [
-      'Early Spring', 'Mid Spring', 'Late Spring',
-      'Early Summer', 'Mid Summer', 'Late Summer',
-      'Early Autumn', 'Mid Autumn', 'Late Autumn',
-      'Early Winter', 'Mid Winter', 'Late Winter',
-    ];
-
-    const seasonName = seasonNames[state.subSeason] || 'Unknown';
+    const majorSeasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
+    const seasonName = majorSeasons[Math.floor(state.subSeason / 3)];
     const speedText = state.paused ? 'PAUSED' : `${state.speed}x`;
+
+    // Calculate calendar day of year (1-based)
+    const ticksIntoYear = state.subSeason * TICKS_PER_SUB_SEASON + state.tickInSubSeason;
+    const dayOfYear = Math.floor(ticksIntoYear / TICKS_PER_YEAR * DAYS_PER_YEAR) + 1;
 
     // Day/night indicator
     let timeOfDay = 'Day';
@@ -354,8 +454,8 @@ export class RenderSystem {
     let x = 10;
     const y = 26;
 
-    ctx.fillText(`Year ${state.year}  ${seasonName}`, x, y);
-    x += 230;
+    ctx.fillText(`Year ${state.year} Day ${dayOfYear}  ${seasonName}`, x, y);
+    x += 260;
 
     // Time of day with color indicator
     ctx.fillStyle = timeColor;
@@ -404,7 +504,9 @@ export class RenderSystem {
       }
     }
 
-    // Game over overlay
+    ctx.restore();
+
+    // Game over overlay (drawn at full logical size, not scaled)
     if (state.gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);

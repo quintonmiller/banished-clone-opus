@@ -1,4 +1,5 @@
 import { EntityId } from '../types';
+import { SerializedWorld } from '../save/SaveTypes';
 
 export class World {
   private nextId: EntityId = 1;
@@ -73,5 +74,67 @@ export class World {
 
   getEntityCount(): number {
     return this.entities.size;
+  }
+
+  /** Serialize entire world state to plain objects */
+  serialize(): SerializedWorld {
+    const components: Record<string, [number, any][]> = {};
+
+    for (const [compType, store] of this.components) {
+      const entries: [number, any][] = [];
+      for (const [id, data] of store) {
+        // Convert Map instances inside components (e.g. storage.inventory)
+        const serialized = this.serializeComponentData(compType, data);
+        entries.push([id, serialized]);
+      }
+      components[compType] = entries;
+    }
+
+    return {
+      nextId: this.nextId,
+      entities: [...this.entities],
+      components,
+    };
+  }
+
+  /** Restore world state from serialized data */
+  deserialize(data: SerializedWorld): void {
+    this.nextId = data.nextId;
+    this.entities = new Set(data.entities);
+    this.components.clear();
+
+    for (const [compType, entries] of Object.entries(data.components)) {
+      const store = new Map<EntityId, any>();
+      for (const [id, compData] of entries) {
+        store.set(id, this.deserializeComponentData(compType, compData));
+      }
+      this.components.set(compType, store);
+    }
+  }
+
+  private serializeComponentData(_compType: string, data: any): any {
+    if (!data || typeof data !== 'object') return data;
+    const result: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value instanceof Map) {
+        result[key] = { __map: true, entries: [...value] };
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  private deserializeComponentData(_compType: string, data: any): any {
+    if (!data || typeof data !== 'object') return data;
+    const result: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value && typeof value === 'object' && (value as any).__map) {
+        result[key] = new Map((value as any).entries);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 }

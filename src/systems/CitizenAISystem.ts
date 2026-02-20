@@ -6,6 +6,11 @@ import {
   STARVING_THRESHOLD, TIRED_THRESHOLD, DIET_HISTORY_SIZE,
   SOCIAL_CHAT_RADIUS, SOCIAL_CHAT_CHANCE, SOCIAL_CHAT_DURATION,
   LONELINESS_THRESHOLD, LONELINESS_HAPPINESS_PENALTY,
+  AI_TICK_INTERVAL, STUCK_THRESHOLD, FREEZING_WARMTH_THRESHOLD,
+  EMERGENCY_SLEEP_ENERGY, CHAT_HAPPINESS_GAIN, HOME_WARMTH_GAIN,
+  WANDER_ATTEMPTS, WANDER_RANGE, FORCE_WANDER_ATTEMPTS,
+  FORCE_WANDER_RANGE, FORCE_WANDER_MIN_DIST,
+  PREGNANT_MEAL_THRESHOLD_BOOST,
 } from '../constants';
 import { distance } from '../utils/MathUtils';
 
@@ -19,8 +24,8 @@ export class CitizenAISystem {
 
   update(): void {
     this.tickCounter++;
-    // Only run AI decisions every 5 ticks for performance
-    if (this.tickCounter % 5 !== 0) return;
+    // Only run AI decisions every N ticks for performance
+    if (this.tickCounter % AI_TICK_INTERVAL !== 0) return;
 
     const world = this.game.world;
     const entities = world.query('citizen', 'position', 'needs', 'movement');
@@ -42,10 +47,10 @@ export class CitizenAISystem {
 
       // --- Chatting: brief social pause ---
       if (citizen.chatTimer > 0) {
-        citizen.chatTimer -= 5;
+        citizen.chatTimer -= AI_TICK_INTERVAL;
         movement.stuckTicks = 0;
         needs.lastSocialTick = this.game.state.tick;
-        if (citizen.chatTimer > 0) continue; // Still chatting
+        if (citizen.chatTimer > 0) { citizen.activity = 'chatting'; continue; }
       }
 
       // Loneliness: if no social contact for a long time, happiness drops
@@ -69,16 +74,19 @@ export class CitizenAISystem {
         }
       }
 
-      // Skip if actively moving along a path
+      // Skip if actively moving along a path (retain last activity)
       if (movement.path && movement.path.length > 0) {
         movement.stuckTicks = 0;
         continue;
       }
 
+      // Default activity — overridden by decision branches below
+      citizen.activity = 'idle';
+
       movement.stuckTicks++;
 
-      // Stuck recovery: if stuck for 50+ AI cycles (250 ticks), force wander
-      if (movement.stuckTicks > 50) {
+      // Stuck recovery: if stuck for too many AI cycles, force wander
+      if (movement.stuckTicks > STUCK_THRESHOLD) {
         if (worker?.workplaceId !== null && worker?.workplaceId !== undefined) {
           this.unassignWorker(id, worker);
         }
@@ -99,12 +107,14 @@ export class CitizenAISystem {
 
       // 1. Starving -> seek food urgently (overrides everything)
       if (needs.food < STARVING_THRESHOLD) {
+        citizen.activity = 'starving';
         this.seekFood(id);
         continue;
       }
 
       // 2. Freezing -> seek warmth (go home)
-      if (needs.warmth < 25) {
+      if (needs.warmth < FREEZING_WARMTH_THRESHOLD) {
+        citizen.activity = 'freezing';
         this.seekWarmth(id);
         continue;
       }
@@ -122,19 +132,26 @@ export class CitizenAISystem {
       }
 
       // 5. Hungry (meal time) -> eat a meal
-      if (needs.food < MEAL_FOOD_THRESHOLD) {
+      const family = this.game.world.getComponent<any>(id, 'family');
+      const mealThreshold = family?.isPregnant
+        ? MEAL_FOOD_THRESHOLD + PREGNANT_MEAL_THRESHOLD_BOOST
+        : MEAL_FOOD_THRESHOLD;
+      if (needs.food < mealThreshold) {
+        citizen.activity = 'eating';
         this.eatMeal(id);
         continue;
       }
 
       // 6. If assigned to a workplace, go work
       if (worker.workplaceId !== null) {
+        citizen.activity = this.professionActivity(worker.profession);
         if (this.isNearBuilding(id, worker.workplaceId)) {
           movement.stuckTicks = 0; // Working, not stuck
           continue;
         }
         if (!this.goToBuilding(id, worker.workplaceId)) {
           this.unassignWorker(id, worker);
+          citizen.activity = 'idle';
         }
         continue;
       }
@@ -143,6 +160,7 @@ export class CitizenAISystem {
       if (worker.profession === Profession.LABORER) {
         const site = this.findNearestConstructionSite(id);
         if (site !== null) {
+          citizen.activity = 'building';
           if (this.isNearBuilding(id, site)) {
             movement.stuckTicks = 0;
             continue;
@@ -157,6 +175,14 @@ export class CitizenAISystem {
       // 9. Wander randomly
       this.wander(id);
     }
+  }
+
+  getInternalState(): { tickCounter: number } {
+    return { tickCounter: this.tickCounter };
+  }
+
+  setInternalState(s: { tickCounter: number }): void {
+    this.tickCounter = s.tickCounter;
   }
 
   private handleChildAI(id: EntityId, citizen: any, needs: any, movement: any): void {
@@ -184,6 +210,7 @@ export class CitizenAISystem {
     if (!citizen.isEducated) {
       const school = this.findBuilding(BuildingType.SCHOOL);
       if (school !== null) {
+        citizen.activity = 'school';
         if (this.isNearBuilding(id, school)) {
           movement.stuckTicks = 0;
           return;
@@ -192,6 +219,7 @@ export class CitizenAISystem {
       }
     }
 
+    citizen.activity = 'idle';
     this.wander(id);
   }
 
@@ -277,7 +305,7 @@ export class CitizenAISystem {
         // Start chatting
         citizen.chatTimer = SOCIAL_CHAT_DURATION;
         needs.lastSocialTick = this.game.state.tick;
-        needs.happiness = Math.min(100, needs.happiness + 0.5);
+        needs.happiness = Math.min(100, needs.happiness + CHAT_HAPPINESS_GAIN);
         return true;
       }
     }
@@ -293,7 +321,7 @@ export class CitizenAISystem {
         citizen.isSleeping = true;
         const needs = this.game.world.getComponent<any>(id, 'needs');
         if (needs) {
-          needs.warmth = Math.min(100, needs.warmth + 0.1);
+          needs.warmth = Math.min(100, needs.warmth + HOME_WARMTH_GAIN);
         }
         const movement = this.game.world.getComponent<any>(id, 'movement')!;
         movement.stuckTicks = 0;
@@ -314,7 +342,7 @@ export class CitizenAISystem {
     }
 
     // Truly homeless — sleep where you are if exhausted
-    if (this.game.world.getComponent<any>(id, 'needs')!.energy < 5) {
+    if (this.game.world.getComponent<any>(id, 'needs')!.energy < EMERGENCY_SLEEP_ENERGY) {
       citizen.isSleeping = true;
       return;
     }
@@ -329,7 +357,7 @@ export class CitizenAISystem {
       if (this.isNearBuilding(id, family.homeId)) {
         const needs = this.game.world.getComponent<any>(id, 'needs');
         if (needs) {
-          needs.warmth = Math.min(100, needs.warmth + 0.1);
+          needs.warmth = Math.min(100, needs.warmth + HOME_WARMTH_GAIN);
         }
         const movement = this.game.world.getComponent<any>(id, 'movement')!;
         movement.stuckTicks = 0;
@@ -409,14 +437,15 @@ export class CitizenAISystem {
 
     worker.workplaceId = null;
     worker.profession = Profession.LABORER;
+    worker.manuallyAssigned = false;
   }
 
   private wander(id: EntityId): void {
     const pos = this.game.world.getComponent<any>(id, 'position')!;
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const ox = this.game.rng.int(-6, 6);
-      const oy = this.game.rng.int(-6, 6);
+    for (let attempt = 0; attempt < WANDER_ATTEMPTS; attempt++) {
+      const ox = this.game.rng.int(-WANDER_RANGE, WANDER_RANGE);
+      const oy = this.game.rng.int(-WANDER_RANGE, WANDER_RANGE);
       if (ox === 0 && oy === 0) continue;
 
       const tx = Math.max(1, Math.min(this.game.tileMap.width - 2, pos.tileX + ox));
@@ -439,10 +468,10 @@ export class CitizenAISystem {
   private forceWander(id: EntityId): void {
     const pos = this.game.world.getComponent<any>(id, 'position')!;
 
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const ox = this.game.rng.int(-15, 15);
-      const oy = this.game.rng.int(-15, 15);
-      if (Math.abs(ox) < 3 && Math.abs(oy) < 3) continue;
+    for (let attempt = 0; attempt < FORCE_WANDER_ATTEMPTS; attempt++) {
+      const ox = this.game.rng.int(-FORCE_WANDER_RANGE, FORCE_WANDER_RANGE);
+      const oy = this.game.rng.int(-FORCE_WANDER_RANGE, FORCE_WANDER_RANGE);
+      if (Math.abs(ox) < FORCE_WANDER_MIN_DIST && Math.abs(oy) < FORCE_WANDER_MIN_DIST) continue;
 
       const tx = Math.max(1, Math.min(this.game.tileMap.width - 2, pos.tileX + ox));
       const ty = Math.max(1, Math.min(this.game.tileMap.height - 2, pos.tileY + oy));
@@ -489,6 +518,25 @@ export class CitizenAISystem {
       if (bld.type === type && bld.completed) return id;
     }
     return null;
+  }
+
+  private professionActivity(profession: string): string {
+    switch (profession) {
+      case Profession.FARMER: return 'farming';
+      case Profession.GATHERER: return 'gathering';
+      case Profession.HUNTER: return 'hunting';
+      case Profession.FISHERMAN: return 'fishing';
+      case Profession.FORESTER: return 'forestry';
+      case Profession.WOOD_CUTTER: return 'woodcutting';
+      case Profession.BLACKSMITH: return 'smithing';
+      case Profession.TAILOR: return 'tailoring';
+      case Profession.HERBALIST: return 'healing';
+      case Profession.VENDOR: return 'vending';
+      case Profession.TEACHER: return 'teaching';
+      case Profession.TRADER: return 'trading';
+      case Profession.BUILDER: return 'building';
+      default: return 'working';
+    }
   }
 
   private findNearestStorage(citizenId: EntityId): EntityId | null {

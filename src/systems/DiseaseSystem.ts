@@ -4,6 +4,10 @@ import {
   DISEASE_HEALTH_DAMAGE, DISEASE_DURATION_TICKS,
   HERBALIST_CURE_RADIUS, HERBALIST_CURE_CHANCE, DISEASE_IMMUNITY_TICKS,
   BuildingType, ResourceType,
+  DISEASE_TICK_INTERVAL, DISEASE_ENERGY_DRAIN,
+  DISEASE_MALNUTRITION_THRESHOLD, DISEASE_MALNUTRITION_MULT,
+  DISEASE_COLD_THRESHOLD, DISEASE_COLD_MULT,
+  DISEASE_WEAK_THRESHOLD, DISEASE_WEAK_MULT,
 } from '../constants';
 import { distance } from '../utils/MathUtils';
 
@@ -17,8 +21,8 @@ export class DiseaseSystem {
 
   update(): void {
     this.tickCounter++;
-    // Run every 5 ticks for performance
-    if (this.tickCounter % 5 !== 0) return;
+    // Run every N ticks for performance
+    if (this.tickCounter % DISEASE_TICK_INTERVAL !== 0) return;
 
     const world = this.game.world;
     const entities = world.query('citizen', 'needs', 'position');
@@ -34,17 +38,17 @@ export class DiseaseSystem {
 
       // Count down immunity
       if (needs.immunityTicks > 0) {
-        needs.immunityTicks -= 5;
+        needs.immunityTicks -= DISEASE_TICK_INTERVAL;
       }
 
       if (needs.isSick) {
         // Disease progression
-        needs.diseaseTicks += 5;
-        needs.health -= DISEASE_HEALTH_DAMAGE * 5;
+        needs.diseaseTicks += DISEASE_TICK_INTERVAL;
+        needs.health -= DISEASE_HEALTH_DAMAGE * DISEASE_TICK_INTERVAL;
 
         // Disease reduces energy faster
         if (needs.energy !== undefined) {
-          needs.energy = Math.max(0, needs.energy - 0.02 * 5);
+          needs.energy = Math.max(0, needs.energy - DISEASE_ENERGY_DRAIN * DISEASE_TICK_INTERVAL);
         }
 
         // Natural recovery after duration
@@ -57,10 +61,10 @@ export class DiseaseSystem {
       } else {
         // Chance to get sick — higher when malnourished or cold
         if (needs.immunityTicks <= 0) {
-          let sickChance = DISEASE_BASE_CHANCE * 5;
-          if (needs.food < 30) sickChance *= 3;
-          if (needs.warmth < 30) sickChance *= 2;
-          if (needs.health < 50) sickChance *= 2;
+          let sickChance = DISEASE_BASE_CHANCE * DISEASE_TICK_INTERVAL;
+          if (needs.food < DISEASE_MALNUTRITION_THRESHOLD) sickChance *= DISEASE_MALNUTRITION_MULT;
+          if (needs.warmth < DISEASE_COLD_THRESHOLD) sickChance *= DISEASE_COLD_MULT;
+          if (needs.health < DISEASE_WEAK_THRESHOLD) sickChance *= DISEASE_WEAK_MULT;
 
           if (Math.random() < sickChance) {
             needs.isSick = true;
@@ -78,6 +82,14 @@ export class DiseaseSystem {
     this.applyHerbalistCures();
   }
 
+  getInternalState(): { tickCounter: number } {
+    return { tickCounter: this.tickCounter };
+  }
+
+  setInternalState(s: { tickCounter: number }): void {
+    this.tickCounter = s.tickCounter;
+  }
+
   private trySpreadDisease(sickId: number): void {
     const world = this.game.world;
     const sickPos = world.getComponent<any>(sickId, 'position')!;
@@ -91,7 +103,7 @@ export class DiseaseSystem {
       const pos = world.getComponent<any>(id, 'position')!;
       const d = distance(sickPos.tileX, sickPos.tileY, pos.tileX, pos.tileY);
       if (d <= DISEASE_SPREAD_RADIUS) {
-        if (Math.random() < DISEASE_SPREAD_CHANCE * 5) {
+        if (Math.random() < DISEASE_SPREAD_CHANCE * DISEASE_TICK_INTERVAL) {
           needs.isSick = true;
           needs.diseaseTicks = 0;
           const citizen = world.getComponent<any>(id, 'citizen');
@@ -131,7 +143,7 @@ export class DiseaseSystem {
         const pos = world.getComponent<any>(id, 'position')!;
         const d = distance(cx, cy, pos.tileX, pos.tileY);
         if (d <= HERBALIST_CURE_RADIUS) {
-          if (Math.random() < HERBALIST_CURE_CHANCE * 5) {
+          if (Math.random() < HERBALIST_CURE_CHANCE * DISEASE_TICK_INTERVAL) {
             this.game.removeResource(ResourceType.HERBS, 1);
             this.cureCitizen(needs);
             const citizen = world.getComponent<any>(id, 'citizen');
