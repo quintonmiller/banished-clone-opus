@@ -1,7 +1,7 @@
 # Banished Clone - Claude Code Project Guide
 
 ## Project Overview
-A 2D browser-playable clone of the PC game "Banished" — a city-building survival sandbox where exiled travelers must build a settlement and survive through resource management, citizen AI, and seasonal challenges. No win state; the central challenge is avoiding the **death spiral** (resource shortage -> deaths -> fewer workers -> more shortage).
+A 2D browser-playable Banished/Stardew Valley hybrid — a city-building survival sandbox with deeper citizen personalities, skill progression, festivals, livestock, and narrative events. No win state; the central challenge is avoiding the **death spiral** (resource shortage -> deaths -> fewer workers -> more shortage).
 
 ## Tech Stack
 - **Language:** TypeScript (strict mode)
@@ -25,11 +25,12 @@ src/
   core/                # GameLoop (fixed-timestep), EventBus (pub/sub), Random (seeded xorshift)
   ecs/                 # World (entity/component store), System (base class)
   components/          # Component type definitions (Position, Citizen, Needs, etc.)
-  systems/             # All game systems (14 total — see below)
+  systems/             # All game systems (16 total — see below)
   map/                 # TileMap, MapGenerator, Pathfinder (A* + LRU cache), Camera
   data/                # Data-driven definitions (BuildingDefs, RecipeDefs, SeasonDefs, etc.)
-  ui/                  # UIManager, BuildMenu, HUD, InfoPanel, Minimap, Tooltip
+  ui/                  # UIManager, BuildMenu, HUD, InfoPanel, Minimap, Tooltip, EventLog, PauseMenu, StartScreen, SettingsPanel
   input/               # InputManager, CameraController, PlacementController
+  save/                # SaveManager (IDB + localStorage), SaveTypes, IndexedDBStore
   utils/               # MathUtils, SpatialHash, SpriteLoader
 ```
 
@@ -43,18 +44,21 @@ src/
 
 ### Systems (update order in Game.ts)
 1. SeasonSystem — calendar + day/night cycle
-2. CitizenAISystem — priority-based decision tree
+2. CitizenAISystem — priority-based decision tree (+ skill XP, tavern visits)
 3. MovementSystem — A* path following
-4. ConstructionSystem — builder material delivery
-5. ProductionSystem — building recipes + resource output
-6. NeedsSystem — food/warmth/health/energy decay
+4. ConstructionSystem — builder material delivery (+ skill/trait bonuses)
+5. ProductionSystem — building recipes + resource output (+ multi-recipe, crop stages, skill/milestone bonuses)
+6. NeedsSystem — food/warmth/health/energy decay (+ well/chapel happiness, milestone bonuses)
 7. StorageSystem — house restocking, food spoilage, market
-8. PopulationSystem — aging, births, families, nomads, worker assignment
+8. PopulationSystem — aging, births, families, nomads, worker assignment (+ chapel weddings)
 9. TradeSystem — merchant visits
 10. EnvironmentSystem — natural tree regrowth, building decay
 11. DiseaseSystem — sickness spread and herbalist cures
-12. ParticleSystem — smoke, snow, leaves
+12. ParticleSystem — smoke, snow, leaves, festival lanterns
 13. WeatherSystem — storms, droughts, cold snaps
+14. FestivalSystem — seasonal festivals at Town Hall with lingering effects
+15. LivestockSystem — chicken/cattle production, feeding, breeding, winter exposure
+16. MilestoneSystem — milestone tracking, permanent bonuses, random narrative events
 
 ### Data-driven design — all tuning in config files
 - **`constants.ts`** — single source of truth for ALL gameplay values. Organized into sections:
@@ -71,6 +75,14 @@ src/
   - Weather (storm/drought chances, damage)
   - Map generation (noise scales, elevation thresholds)
   - Particles (spawn rates, visual params)
+  - Personality traits (work speed, social, happiness effects)
+  - Citizen skills (XP rates, efficiency per level, mastery bonus)
+  - Crop growth stages (stage ticks, harvest yield)
+  - Cooking/meal quality (restore amounts, warmth/happiness/energy boosts)
+  - Festivals (duration, happiness, effect multipliers)
+  - Animals/livestock (capacity, feed rates, production timers, breeding)
+  - Milestones/narrative events (check intervals, event chances)
+  - Tavern/well/chapel (happiness values, radii)
 - **`data/BuildingDefs.ts`** — per-building stats (cost, size, constructionWork, maxWorkers)
 - **`data/RecipeDefs.ts`** — production recipes (inputs, outputs, cooldownTicks)
 - **`data/SeasonDefs.ts`** — per-season temperature, crop growth, gathering rates
@@ -82,11 +94,13 @@ src/
 3. Freezing (warmth < `FREEZING_WARMTH_THRESHOLD`) -> go home
 4. Exhausted (energy < `TIRED_THRESHOLD`) -> go home and sleep
 5. Night time -> go home and sleep
-6. Hungry (food < `MEAL_FOOD_THRESHOLD`) -> eat a meal
-7. Assigned to workplace -> go work
-8. Laborer -> find construction site
-9. Social interaction -> chat with nearby citizen
-10. Wander randomly
+6. Hungry (food < `MEAL_FOOD_THRESHOLD`) -> eat a meal (prefers cooked food)
+5b. Festival active -> go to Town Hall and celebrate
+7. Assigned to workplace -> go work (grants skill XP)
+8. Laborer -> find construction site (grants building skill XP)
+9. Evening hours -> visit Tavern if available
+10. Social interaction -> chat with nearby citizen
+11. Wander randomly (adventurous trait gains happiness)
 
 ### Day/Night & Construction Timing
 - `TICKS_PER_DAY = 1800` (3 minutes real time at 1x)
@@ -101,10 +115,16 @@ src/
 - `getComponentStore` returns `Map<EntityId, {}>` by default — always use `<any>` type parameter
 - `movement.stuckTicks` must be checked with `=== undefined`, not `!movement.stuckTicks` (0 is falsy)
 - `goToBuilding` tries 6 entry points around buildings — if all fail, returns false
-- New citizens spawned by PopulationSystem must include `energy`, `isSleeping`, `recentDiet` fields
-- Food is stored as multiple types (berries, venison, etc.) — use `game.getTotalFood()` and `game.removeFood()` for aggregates
+- New citizens spawned by PopulationSystem must include `energy`, `isSleeping`, `recentDiet`, `traits` fields
+- Food is stored as multiple types (berries, venison, cooked foods, etc.) — use `game.getTotalFood()` and `game.removeFood()` for aggregates; `ALL_FOOD_TYPES` includes raw + cooked + animal foods
 - **Never hardcode gameplay numbers in system files** — always add a named constant in `constants.ts` and import it
 - Building and recipe defs have their own data files — don't duplicate values in constants.ts
+- Multi-recipe buildings (Bakery, Tailor) cycle through recipes via `producer.recipeIndex` — all matching recipes are found by `RECIPE_DEFS.filter(r => r.buildingType === bld.type)`
+- Crop fields use growth stages (`producer.cropStage`) instead of normal timer-based production — handled by `updateCropField()` in ProductionSystem
+- Livestock data lives in LivestockSystem's internal map (not as ECS components) — use `game.livestockSystem.getLivestockData(buildingId)` to access
+- Festival effects checked via `game.festivalSystem.hasActiveEffect('type')` — lingering effects last the rest of the season
+- Milestone bonuses accessed via `game.milestoneSystem.getBonus('bonusType')` — returns accumulated value from all achieved milestones
+- Personality traits stored as `string[]` on citizen component; skill XP stored on worker component as `worker.skills[skillType] = { xp, level }`
 
 ## Keyboard Shortcuts
 - **Space** — Pause/unpause

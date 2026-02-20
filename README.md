@@ -1,6 +1,6 @@
 # Banished Clone
 
-A 2D browser-playable clone of [Banished](https://www.shiningrocksoftware.com/), the city-building survival game by Shining Rock Software. Guide a group of exiled travelers as they build a new settlement, manage resources, and survive harsh seasons.
+A 2D browser-playable hybrid of [Banished](https://www.shiningrocksoftware.com/) and Stardew Valley — a city-building survival sandbox with deeper citizen personalities, skill progression, festivals, livestock, and narrative events. Guide a group of exiled travelers as they build a new settlement, manage resources, and survive harsh seasons.
 
 Built with TypeScript and HTML5 Canvas. No frameworks, no dependencies beyond Vite.
 
@@ -58,22 +58,58 @@ There is no win condition — it's a sandbox survival game. The challenge is avo
 - Family formation, housing, children, aging, and natural death
 - Education system — schooled citizens produce 50% more
 - Social interactions — citizens chat when near each other; loneliness causes unhappiness
+- **Personality traits** — hardworking, lazy, cheerful, shy, adventurous (1-2 per citizen, affect work speed, socializing, and happiness)
+- **Skill progression** — citizens gain XP in their profession's skill (farming, forestry, cooking, etc.), leveling up to 5 for +5% efficiency per level; mastery grants bonus output
 
-### 15 Building Types
+### 24 Building Types
 
 | Category | Buildings |
 |----------|-----------|
 | Housing | Wooden House |
 | Storage | Storage Barn, Stockpile |
-| Food | Crop Field, Gathering Hut, Hunting Cabin, Fishing Dock |
-| Resource | Forester Lodge, Wood Cutter, Blacksmith, Tailor |
-| Services | Herbalist, Market, School, Trading Post |
+| Food | Crop Field, Gathering Hut, Hunting Cabin, Fishing Dock, Bakery, Chicken Coop, Pasture |
+| Resource | Forester Lodge, Wood Cutter, Blacksmith, Tailor, Dairy |
+| Services | Herbalist, Market, School, Trading Post, Town Hall, Tavern, Well, Chapel |
 | Infrastructure | Road |
 
-### 16 Resource Types
+### 27 Resource Types
 - **Raw:** Log, Stone, Iron
-- **Food:** Berries, Mushrooms, Roots, Venison, Fish, Wheat, Cabbage, Potato
-- **Processed:** Firewood, Tool, Coat, Herbs, Leather
+- **Food (raw):** Berries, Mushrooms, Roots, Venison, Fish, Wheat, Cabbage, Potato
+- **Food (cooked):** Bread, Fish Stew, Berry Pie, Vegetable Soup, Cheese
+- **Food (animal):** Eggs, Milk
+- **Processed:** Firewood, Tool, Coat, Herbs, Leather, Feathers, Hay, Wool, Cloth
+
+### Cooking & Bakery
+- Bakery building converts raw ingredients into cooked meals (Bread, Fish Stew, Berry Pie, Vegetable Soup)
+- Cooked meals restore more food and give buffs: warmth (stew/soup), energy (pie), happiness (all)
+- Multi-recipe buildings cycle through available recipes based on ingredient availability
+
+### Crop Growth Stages
+- Crops progress through visible stages: Fallow → Planted → Sprouting → Growing → Flowering → Ready to Harvest
+- Growth rate affected by season, weather, workers, and festival effects
+- Unharvested crops die in winter, adding seasonal pressure
+
+### Animals & Livestock
+- **Chicken Coop** — raises chickens for eggs and feathers; needs hay
+- **Pasture** — raises cattle for milk, wool, and leather; cattle suffer in winter
+- **Dairy** — converts milk into cheese
+- **Tailor** — now also crafts cloth from wool
+- Crop harvests produce hay to feed animals; animals breed when healthy and below capacity
+
+### Festivals & Town Hall
+- Town Hall unlocks 4 seasonal festivals: Planting Day (spring), Midsummer (summer), Harvest Festival (autumn), Frost Fair (winter)
+- During festivals: citizens gather at Town Hall, happiness boost, lantern particles
+- Lingering effects: crop growth boost, happiness multiplier, reduced spoilage, reduced disease
+
+### Social Buildings
+- **Tavern** — citizens visit in evening hours for happiness (needs a barkeep)
+- **Well** — passive happiness radius for nearby citizens (decorative)
+- **Chapel** — boosts newlywed happiness; provides community-wide morale
+
+### Milestones & Narrative Events
+- 10 milestones (First House, Winter Survivors, Population 10/20/50, First Trade, etc.) grant permanent bonuses
+- Random narrative events tied to individual citizens ("found wild berries", "told a story by the fire")
+- Milestones and events appear in the event log and as notifications
 
 ### Seasonal Cycle
 - 12 sub-seasons per year (Early/Mid/Late Spring, Summer, Autumn, Winter)
@@ -99,13 +135,14 @@ All gameplay values are centralized in config files for easy tuning:
 ### Other Systems
 - Nomad arrivals bring new citizens (and sometimes disease)
 - Merchant traders visit the Trading Post for resource bartering
-- Particle effects: chimney smoke, snowfall, falling leaves
+- Particle effects: chimney smoke, snowfall, falling leaves, festival lanterns
 - Minimap with camera indicator
-- Detailed info panels for selected citizens and buildings
+- Detailed info panels for selected citizens and buildings (traits, skills, livestock, crop stages)
+- Save/load system with IndexedDB and localStorage fallback
 
 ## Architecture
 
-Lightweight Entity Component System (ECS) with 13 game systems, all rendered on a single HTML5 Canvas. Fixed-timestep simulation at 10 ticks/sec with variable-rate rendering. All gameplay values are data-driven through centralized config files. See [CLAUDE.md](CLAUDE.md) for technical details.
+Lightweight Entity Component System (ECS) with 16 game systems, all rendered on a single HTML5 Canvas. Fixed-timestep simulation at 10 ticks/sec with variable-rate rendering. All gameplay values are data-driven through centralized config files. See [CLAUDE.md](CLAUDE.md) for technical details.
 
 ## License
 
