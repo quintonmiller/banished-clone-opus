@@ -103,6 +103,7 @@ export class SaveManager {
         population: game.populationSystem.getInternalState(),
         storage: game.storageSystem.getInternalState(),
         particle: game.particleSystem.getInternalState(),
+        festival: game.festivalSystem.getInternalState(),
       },
     };
   }

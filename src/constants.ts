@@ -298,6 +298,19 @@ export const TREE_GROWTH_TICKS = 3000;         // worker-ticks per density level
 export const STONE_DEPOSIT_AMOUNT = 50;        // starting amount in each stone deposit tile
 export const IRON_DEPOSIT_AMOUNT = 30;         // starting amount in each iron deposit tile
 
+// Festivals
+export const FESTIVAL_DURATION_TICKS = 600;           // how long a festival lasts (~1 minute real at 1x)
+export const FESTIVAL_HAPPINESS_BOOST = 15;           // happiness added when festival starts
+export const FESTIVAL_HAPPINESS_PER_TICK = 0.02;      // happiness gained per tick for attending citizens
+export const FESTIVAL_GATHER_RADIUS = 8;              // tiles from Town Hall citizens will gather
+export const FESTIVAL_LANTERN_COUNT = 12;             // lantern particles to spawn per interval
+export const FESTIVAL_CHECK_TICKS = 100;              // ticks into a sub-season when festival triggers
+// Festival effects (multipliers active for the rest of the season after the festival)
+export const HARVEST_FESTIVAL_SPOILAGE_MULT = 0.5;   // 50% less food spoilage
+export const FROST_FAIR_DISEASE_MULT = 0.5;           // 50% less disease chance
+export const PLANTING_DAY_CROP_MULT = 1.2;            // 20% crop growth boost
+export const MIDSUMMER_HAPPINESS_MULT = 1.5;          // 50% more happiness gain
+
 // Spatial hash
 export const SPATIAL_CELL_SIZE = 8; // tiles
 
@@ -378,6 +391,7 @@ export const BuildingType = {
   SCHOOL: 'school',
   TRADING_POST: 'trading_post',
   ROAD: 'road',
+  TOWN_HALL: 'town_hall',
 } as const;
 export type BuildingType = (typeof BuildingType)[keyof typeof BuildingType];
 

@@ -39,6 +39,15 @@ export class UIManager {
     game.eventBus.on('new_year', (data: any) => {
       this.addNotification(`Year ${data.year} begins`, '#ffffff');
     });
+    game.eventBus.on('festival_started', (data: any) => {
+      const names: Record<string, string> = {
+        planting_day: 'Planting Day',
+        midsummer: 'Midsummer Celebration',
+        harvest_festival: 'Harvest Festival',
+        frost_fair: 'Frost Fair',
+      };
+      this.addNotification(`${names[data.type] || 'Festival'} has begun!`, '#ffdd44');
+    });
   }
 
   handleClick(screenX: number, screenY: number): boolean {

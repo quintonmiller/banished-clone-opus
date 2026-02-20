@@ -2,7 +2,7 @@ import type { Game } from '../Game';
 import {
   TILE_SIZE, MAX_PARTICLES, PARTICLE_SPAWN_INTERVAL,
   SMOKE_SPAWN_CHANCE, SMOKE_MIN_WARMTH, SNOW_PARTICLES_PER_SPAWN,
-  LEAF_SPAWN_CHANCE,
+  LEAF_SPAWN_CHANCE, FESTIVAL_LANTERN_COUNT,
 } from '../constants';
 import { SEASON_DATA } from '../data/SeasonDefs';
 
@@ -34,6 +34,7 @@ export class ParticleSystem {
     if (this.tickCounter % PARTICLE_SPAWN_INTERVAL === 0) {
       this.spawnSmoke();
       this.spawnWeatherParticles();
+      this.spawnFestivalParticles();
     }
 
     // Update existing particles
@@ -134,6 +135,42 @@ export class ParticleSystem {
           alpha: 0.8,
         });
       }
+    }
+  }
+
+  /** Spawn lantern / sparkle particles around Town Hall during festivals */
+  private spawnFestivalParticles(): void {
+    if (this.particles.length >= MAX_PARTICLES) return;
+
+    const fest = this.game.state.festival;
+    if (!fest || fest.ticksRemaining <= 0) return;
+
+    const thPos = this.game.world.getComponent<any>(fest.townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(fest.townHallId, 'building');
+    if (!thPos || !thBld) return;
+
+    const cx = (thPos.tileX + thBld.width / 2) * TILE_SIZE;
+    const cy = (thPos.tileY + thBld.height / 2) * TILE_SIZE;
+
+    const lanternColors = ['#ffdd44', '#ff8833', '#ffaa22', '#ffcc66', '#ff6644'];
+
+    for (let i = 0; i < FESTIVAL_LANTERN_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * TILE_SIZE * 4;
+      const px = cx + Math.cos(angle) * dist;
+      const py = cy + Math.sin(angle) * dist;
+
+      this.particles.push({
+        x: px,
+        y: py,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: -0.2 - Math.random() * 0.4,
+        life: 30 + Math.floor(Math.random() * 30),
+        maxLife: 60,
+        size: 1.5 + Math.random() * 2,
+        color: lanternColors[Math.floor(Math.random() * lanternColors.length)],
+        alpha: 0.8,
+      });
     }
   }
 

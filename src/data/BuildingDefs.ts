@@ -170,4 +170,14 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     constructionWork: 5,         // nearly instant
     description: 'Citizens walk 2x faster on roads. Cheap to build.',
   },
+  [BuildingType.TOWN_HALL]: {
+    type: BuildingType.TOWN_HALL,
+    name: 'Town Hall',
+    category: BuildingCategory.SERVICES,
+    width: 5, height: 5,
+    costLog: 80, costStone: 60, costIron: 20,
+    maxWorkers: 0, workRadius: 0,
+    constructionWork: 800,       // 5 workers → 3d (major community building)
+    description: 'The heart of the village. Unlocks seasonal festivals that boost morale and grant bonuses.',
+  },
 };

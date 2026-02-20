@@ -1,7 +1,7 @@
 import { Camera } from '../map/Camera';
 import { TileMap } from '../map/TileMap';
 import { TileType, TILE_SIZE, HUD_HEIGHT, TICKS_PER_SUB_SEASON, TICKS_PER_YEAR, DAYS_PER_YEAR } from '../constants';
-import { GameState, EntityId } from '../types';
+import { GameState, EntityId, FestivalType } from '../types';
 import { Settings } from '../Settings';
 
 // Tile colors
@@ -24,6 +24,7 @@ const BUILDING_COLORS: Record<string, string> = {
   Resource: '#aa7733',
   Services: '#5577aa',
   Infrastructure: '#8a7d6b',
+  'Services_festival': '#ffdd44', // Used during active festivals for Town Hall glow
 };
 
 export class RenderSystem {
@@ -298,6 +299,7 @@ export class RenderSystem {
     trading:     { symbol: '$',  color: '#dddd44' },
     school:      { symbol: 'S',  color: '#aaaadd' },
     working:     { symbol: 'W',  color: '#cccccc' },
+    celebrating: { symbol: '\u266B', color: '#ffdd44' },
   };
 
   private drawCitizen(
@@ -477,6 +479,21 @@ export class RenderSystem {
         x += 90;
         ctx.font = '14px monospace';
       }
+    }
+
+    // Festival indicator
+    if (state.festival && state.festival.ticksRemaining > 0) {
+      const festNames: Record<FestivalType, string> = {
+        planting_day: 'PLANTING DAY',
+        midsummer: 'MIDSUMMER',
+        harvest_festival: 'HARVEST FEST',
+        frost_fair: 'FROST FAIR',
+      };
+      ctx.fillStyle = '#ffdd44';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText(festNames[state.festival.type], x, y);
+      x += ctx.measureText(festNames[state.festival.type]).width + 15;
+      ctx.font = '14px monospace';
     }
 
     ctx.fillStyle = '#ffffff';

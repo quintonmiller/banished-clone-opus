@@ -4,6 +4,7 @@ import {
   STORAGE_CHECK_INTERVAL, HOUSE_FIREWOOD_MIN, HOUSE_FIREWOOD_TARGET,
   HOUSE_WARMTH_GAIN_FROM_FIRE, HOUSE_FIREWOOD_CONSUMPTION,
   HOUSE_WARMTH_LOSS_NO_FIRE, MARKET_HAPPINESS_GAIN,
+  HARVEST_FESTIVAL_SPOILAGE_MULT,
 } from '../constants';
 
 export class StorageSystem {
@@ -85,7 +86,12 @@ export class StorageSystem {
   private spoilFood(): void {
     // Check if player has any storage barns (reduce spoilage)
     const hasBarn = this.hasBuildingType(BuildingType.STORAGE_BARN);
-    const spoilageMult = hasBarn ? BARN_SPOILAGE_MULT : 1.0;
+    let spoilageMult = hasBarn ? BARN_SPOILAGE_MULT : 1.0;
+
+    // Harvest Festival effect — further reduces spoilage
+    if (this.game.festivalSystem.hasActiveEffect('harvest_festival')) {
+      spoilageMult *= HARVEST_FESTIVAL_SPOILAGE_MULT;
+    }
 
     // Spoil each food type
     const allFoodTypes = ['food', ...FOOD_TYPES];

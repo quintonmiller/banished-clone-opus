@@ -111,6 +111,26 @@ export class EventLog {
     bus.on('weather_cleared', () => {
       this.addEntry('weather', 'The weather has cleared', '#aaddaa');
     });
+
+    bus.on('festival_started', (data: any) => {
+      const names: Record<string, string> = {
+        planting_day: 'Planting Day',
+        midsummer: 'Midsummer Celebration',
+        harvest_festival: 'Harvest Festival',
+        frost_fair: 'Frost Fair',
+      };
+      this.addEntry('festival', `${names[data.type] || data.type} has begun!`, '#ffdd44');
+    });
+
+    bus.on('festival_ended', (data: any) => {
+      const names: Record<string, string> = {
+        planting_day: 'Planting Day',
+        midsummer: 'Midsummer Celebration',
+        harvest_festival: 'Harvest Festival',
+        frost_fair: 'Frost Fair',
+      };
+      this.addEntry('festival', `${names[data.type] || data.type} has ended`, '#ccaa44');
+    });
   }
 
   addEntry(category: string, text: string, color: string,

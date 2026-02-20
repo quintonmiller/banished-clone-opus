@@ -73,5 +73,6 @@ export interface SaveData {
     population: { tickCounter: number };
     storage: { tickCounter: number };
     particle: { tickCounter: number };
+    festival: { celebrated: number[] };
   };
 }

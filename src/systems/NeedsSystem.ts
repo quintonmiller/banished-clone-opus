@@ -20,6 +20,7 @@ import {
   T1_FOOD_DECAY_MULT, T1_ENERGY_DECAY_MULT, T1_SPEED_MULT,
   T2_FOOD_DECAY_MULT, T2_ENERGY_DECAY_MULT, T2_SPEED_MULT,
   T3_FOOD_DECAY_MULT, T3_ENERGY_DECAY_MULT, T3_SPEED_MULT,
+  MIDSUMMER_HAPPINESS_MULT,
 } from '../constants';
 
 export class NeedsSystem {
@@ -148,7 +149,12 @@ export class NeedsSystem {
       if (needs.food < UNHAPPY_FOOD_THRESHOLD || needs.warmth < UNHAPPY_WARMTH_THRESHOLD || needs.health < UNHAPPY_HEALTH_THRESHOLD || needs.energy < UNHAPPY_ENERGY_THRESHOLD) {
         needs.happiness = Math.max(0, needs.happiness - UNHAPPINESS_RATE);
       } else if (needs.food > HAPPY_NEEDS_THRESHOLD && needs.warmth > HAPPY_NEEDS_THRESHOLD && needs.health > HAPPY_NEEDS_THRESHOLD && needs.energy > HAPPY_ENERGY_THRESHOLD) {
-        needs.happiness = Math.min(100, needs.happiness + HAPPINESS_GAIN_RATE);
+        let happinessGain = HAPPINESS_GAIN_RATE;
+        // Midsummer festival effect — boosted happiness gain
+        if (this.game.festivalSystem.hasActiveEffect('midsummer')) {
+          happinessGain *= MIDSUMMER_HAPPINESS_MULT;
+        }
+        needs.happiness = Math.min(100, needs.happiness + happinessGain);
       }
 
       // Diet variety bonus/penalty

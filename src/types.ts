@@ -83,6 +83,18 @@ export interface GameState {
   nightAlpha: number;   // 0..1 darkness level for rendering
   // Worker assignment mode
   assigningWorker: EntityId | null;
+  // Festival state
+  festival: FestivalState | null;
+}
+
+export type FestivalType = 'planting_day' | 'midsummer' | 'harvest_festival' | 'frost_fair';
+
+export interface FestivalState {
+  type: FestivalType;
+  ticksRemaining: number;
+  townHallId: EntityId;
+  /** Active buff applied for the rest of the season after the festival */
+  activeEffect: FestivalType | null;
 }
 
 export interface EventLogEntry {

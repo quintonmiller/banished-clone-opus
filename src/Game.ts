@@ -22,6 +22,7 @@ import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DiseaseSystem } from './systems/DiseaseSystem';
 import { ParticleSystem } from './systems/ParticleSystem';
 import { WeatherSystem } from './systems/WeatherSystem';
+import { FestivalSystem } from './systems/FestivalSystem';
 import { UIManager } from './ui/UIManager';
 import { PlacementController } from './input/PlacementController';
 import { GameState, EntityId } from './types';
@@ -69,6 +70,7 @@ export class Game {
   diseaseSystem: DiseaseSystem;
   particleSystem: ParticleSystem;
   weatherSystem: WeatherSystem;
+  festivalSystem: FestivalSystem;
   uiManager: UIManager;
   private loop: GameLoop;
 
@@ -129,6 +131,7 @@ export class Game {
       isDawn: false,
       nightAlpha: 0,
       assigningWorker: null,
+      festival: null,
     };
 
     // Initialize resources
@@ -151,6 +154,7 @@ export class Game {
     this.diseaseSystem = new DiseaseSystem(this);
     this.particleSystem = new ParticleSystem(this);
     this.weatherSystem = new WeatherSystem(this);
+    this.festivalSystem = new FestivalSystem(this);
 
     // UI
     this.uiManager = new UIManager(this);
@@ -262,6 +266,9 @@ export class Game {
     this.populationSystem.setInternalState(data.systems.population);
     this.storageSystem.setInternalState(data.systems.storage);
     this.particleSystem.setInternalState(data.systems.particle);
+    if (data.systems.festival) {
+      this.festivalSystem.setInternalState(data.systems.festival);
+    }
 
     // Restore event log
     if (data.eventLog) {
@@ -319,6 +326,7 @@ export class Game {
     this.diseaseSystem.update();
     this.particleSystem.update();
     this.weatherSystem.update();
+    this.festivalSystem.update();
 
     // Update population count
     const citizens = this.world.getComponentStore('citizen');

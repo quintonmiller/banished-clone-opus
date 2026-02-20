@@ -8,6 +8,7 @@ import {
   DISEASE_MALNUTRITION_THRESHOLD, DISEASE_MALNUTRITION_MULT,
   DISEASE_COLD_THRESHOLD, DISEASE_COLD_MULT,
   DISEASE_WEAK_THRESHOLD, DISEASE_WEAK_MULT,
+  FROST_FAIR_DISEASE_MULT,
 } from '../constants';
 import { distance } from '../utils/MathUtils';
 
@@ -65,6 +66,11 @@ export class DiseaseSystem {
           if (needs.food < DISEASE_MALNUTRITION_THRESHOLD) sickChance *= DISEASE_MALNUTRITION_MULT;
           if (needs.warmth < DISEASE_COLD_THRESHOLD) sickChance *= DISEASE_COLD_MULT;
           if (needs.health < DISEASE_WEAK_THRESHOLD) sickChance *= DISEASE_WEAK_MULT;
+
+          // Frost Fair festival effect — reduce disease chance
+          if (this.game.festivalSystem.hasActiveEffect('frost_fair')) {
+            sickChance *= FROST_FAIR_DISEASE_MULT;
+          }
 
           if (Math.random() < sickChance) {
             needs.isSick = true;

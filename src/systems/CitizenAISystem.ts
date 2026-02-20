@@ -142,6 +142,19 @@ export class CitizenAISystem {
         continue;
       }
 
+      // 5b. Festival — go to Town Hall gathering instead of working
+      if (this.game.festivalSystem.isFestivalActive()) {
+        const fest = this.game.state.festival;
+        if (fest) {
+          citizen.activity = 'celebrating';
+          if (this.isNearBuilding(id, fest.townHallId)) {
+            movement.stuckTicks = 0;
+            continue;
+          }
+          if (this.goToBuilding(id, fest.townHallId)) continue;
+        }
+      }
+
       // 6. If assigned to a workplace, go work
       if (worker.workplaceId !== null) {
         citizen.activity = this.professionActivity(worker.profession);
@@ -204,6 +217,19 @@ export class CitizenAISystem {
     if (needs.food < MEAL_FOOD_THRESHOLD) {
       this.eatMeal(id);
       return;
+    }
+
+    // Festival — children attend too
+    if (this.game.festivalSystem.isFestivalActive()) {
+      const fest = this.game.state.festival;
+      if (fest) {
+        citizen.activity = 'celebrating';
+        if (this.isNearBuilding(id, fest.townHallId)) {
+          movement.stuckTicks = 0;
+          return;
+        }
+        if (this.goToBuilding(id, fest.townHallId)) return;
+      }
     }
 
     // School

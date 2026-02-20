@@ -6,6 +6,7 @@ import {
   NO_TOOL_PRODUCTION_MULT, TOOL_WEAR_PER_TICK,
   FORESTER_REPLANT_TICKS, TREE_GROWTH_TICKS,
   FOREST_EFFICIENCY_DIVISOR,
+  PLANTING_DAY_CROP_MULT,
 } from '../constants';
 
 export class ProductionSystem {
@@ -75,6 +76,10 @@ export class ProductionSystem {
           efficiency *= seasonData.cropGrowth;
           // Weather affects crops
           efficiency *= this.game.weatherSystem.getCropWeatherMult();
+          // Planting Day festival effect — boost crop growth
+          if (this.game.festivalSystem.hasActiveEffect('planting_day')) {
+            efficiency *= PLANTING_DAY_CROP_MULT;
+          }
         } else {
           efficiency *= seasonData.gatheringRate;
         }
