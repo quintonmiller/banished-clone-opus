@@ -130,6 +130,16 @@ export class EventLog {
       this.addEntry('festival', `${names[data.type] || data.type} has begun!`, '#ffdd44');
     });
 
+    bus.on('milestone_achieved', (data: any) => {
+      this.addEntry('milestone', `Milestone: ${data.name} — ${data.bonus}`, '#ffcc00');
+    });
+
+    bus.on('narrative_event', (data: any) => {
+      const pos = this.game.world.getComponent<any>(data.citizenId, 'position');
+      this.addEntry('narrative', data.text, '#aaddff',
+        data.citizenId, pos?.tileX, pos?.tileY);
+    });
+
     bus.on('festival_ended', (data: any) => {
       const names: Record<string, string> = {
         planting_day: 'Planting Day',

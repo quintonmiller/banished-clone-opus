@@ -177,6 +177,12 @@ export class NeedsSystem {
         needs.happiness = Math.min(100, needs.happiness + CHAPEL_COMMUNITY_HAPPINESS);
       }
 
+      // Milestone happiness baseline bonus
+      const happinessBaseline = this.game.milestoneSystem.getBonus('happiness_baseline');
+      if (happinessBaseline > 0 && needs.happiness < happinessBaseline) {
+        needs.happiness = Math.min(100, needs.happiness + 0.01);
+      }
+
       // Diet variety bonus/penalty
       if (needs.recentDiet && needs.recentDiet.length >= 3) {
         const uniqueTypes = new Set(needs.recentDiet).size;

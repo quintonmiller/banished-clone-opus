@@ -89,6 +89,10 @@ export class ProductionSystem {
       const skillBonus = this.getSkillBonus(id, bld.type);
       efficiency *= (1 + skillBonus);
 
+      // Milestone bonuses
+      const milestones = this.game.milestoneSystem;
+      efficiency *= (1 + milestones.getBonus('work_speed') + milestones.getBonus('all_production'));
+
       // Tool check
       const needsTools = this.buildingNeedsTools(bld.type);
       if (needsTools) {
@@ -110,8 +114,12 @@ export class ProductionSystem {
           if (this.game.festivalSystem.hasActiveEffect('planting_day')) {
             efficiency *= PLANTING_DAY_CROP_MULT;
           }
+          // Milestone crop growth bonus
+          efficiency *= (1 + milestones.getBonus('crop_growth'));
         } else {
           efficiency *= seasonData.gatheringRate;
+          // Milestone gathering speed bonus
+          efficiency *= (1 + milestones.getBonus('gathering_speed'));
         }
       }
 

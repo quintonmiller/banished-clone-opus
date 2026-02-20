@@ -24,6 +24,7 @@ import { ParticleSystem } from './systems/ParticleSystem';
 import { WeatherSystem } from './systems/WeatherSystem';
 import { FestivalSystem } from './systems/FestivalSystem';
 import { LivestockSystem } from './systems/LivestockSystem';
+import { MilestoneSystem } from './systems/MilestoneSystem';
 import { UIManager } from './ui/UIManager';
 import { PlacementController } from './input/PlacementController';
 import { GameState, EntityId } from './types';
@@ -74,6 +75,7 @@ export class Game {
   weatherSystem: WeatherSystem;
   festivalSystem: FestivalSystem;
   livestockSystem: LivestockSystem;
+  milestoneSystem: MilestoneSystem;
   uiManager: UIManager;
   private loop: GameLoop;
 
@@ -159,6 +161,7 @@ export class Game {
     this.weatherSystem = new WeatherSystem(this);
     this.festivalSystem = new FestivalSystem(this);
     this.livestockSystem = new LivestockSystem(this);
+    this.milestoneSystem = new MilestoneSystem(this);
 
     // UI
     this.uiManager = new UIManager(this);
@@ -276,6 +279,9 @@ export class Game {
     if (data.systems.livestock) {
       this.livestockSystem.setInternalState(data.systems.livestock);
     }
+    if (data.systems.milestone) {
+      this.milestoneSystem.setInternalState(data.systems.milestone);
+    }
 
     // Restore event log
     if (data.eventLog) {
@@ -335,6 +341,7 @@ export class Game {
     this.weatherSystem.update();
     this.festivalSystem.update();
     this.livestockSystem.update();
+    this.milestoneSystem.update();
 
     // Update population count
     const citizens = this.world.getComponentStore('citizen');

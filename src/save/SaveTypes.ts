@@ -75,5 +75,6 @@ export interface SaveData {
     particle: { tickCounter: number };
     festival: { celebrated: number[] };
     livestock?: { livestock: [number, any][] };
+    milestone?: { achieved: string[]; bonuses: [string, number][]; lastNarrativeTick: number; deathsBeforeFirstWinter: number; passedFirstWinter: boolean };
   };
 }

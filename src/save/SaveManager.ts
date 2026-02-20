@@ -105,6 +105,7 @@ export class SaveManager {
         particle: game.particleSystem.getInternalState(),
         festival: game.festivalSystem.getInternalState(),
         livestock: game.livestockSystem.getInternalState(),
+        milestone: game.milestoneSystem.getInternalState(),
       },
     };
   }

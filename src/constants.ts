@@ -396,6 +396,25 @@ export const FROST_FAIR_DISEASE_MULT = 0.5;           // 50% less disease chance
 export const PLANTING_DAY_CROP_MULT = 1.2;            // 20% crop growth boost
 export const MIDSUMMER_HAPPINESS_MULT = 1.5;          // 50% more happiness gain
 
+// Milestones & Narrative Events
+export const MILESTONE_CHECK_INTERVAL = 200;       // ticks between milestone checks
+export const NARRATIVE_EVENT_CHANCE = 0.003;        // chance per check for a random narrative event
+export const NARRATIVE_EVENT_INTERVAL = 600;        // min ticks between narrative events
+
+export const MilestoneId = {
+  FIRST_HOUSE: 'first_house',
+  FIRST_WINTER: 'first_winter',
+  POP_10: 'pop_10',
+  POP_20: 'pop_20',
+  POP_50: 'pop_50',
+  FIRST_TRADE: 'first_trade',
+  FIRST_HARVEST: 'first_harvest',
+  FIRST_BIRTH: 'first_birth',
+  FIRST_SCHOOL: 'first_school',
+  SELF_SUFFICIENT: 'self_sufficient',
+} as const;
+export type MilestoneId = (typeof MilestoneId)[keyof typeof MilestoneId];
+
 // Animals & Livestock
 export const CHICKEN_CAPACITY = 8;                 // max chickens per coop
 export const CATTLE_CAPACITY = 4;                   // max cattle per pasture

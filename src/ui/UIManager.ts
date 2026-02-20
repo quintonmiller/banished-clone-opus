@@ -48,6 +48,9 @@ export class UIManager {
       };
       this.addNotification(`${names[data.type] || 'Festival'} has begun!`, '#ffdd44');
     });
+    game.eventBus.on('milestone_achieved', (data: any) => {
+      this.addNotification(`Milestone: ${data.name}!`, '#ffcc00');
+    });
   }
 
   handleClick(screenX: number, screenY: number): boolean {
