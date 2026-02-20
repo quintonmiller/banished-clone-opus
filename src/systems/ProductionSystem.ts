@@ -8,6 +8,7 @@ import {
   FOREST_EFFICIENCY_DIVISOR,
   PLANTING_DAY_CROP_MULT,
   TRAIT_WORK_SPEED_BONUS, PersonalityTrait,
+  CropStage, CROP_STAGE_TICKS, CROP_HARVEST_YIELD_MULT, Season,
 } from '../constants';
 
 export class ProductionSystem {
@@ -37,6 +38,12 @@ export class ProductionSystem {
     for (const [id, producer] of producers) {
       const bld = buildings.get(id);
       if (!bld || !bld.completed) continue;
+
+      // Crop fields use growth stage system instead of normal production
+      if (bld.type === BuildingType.CROP_FIELD) {
+        this.updateCropField(id, bld, producer, seasonData);
+        continue;
+      }
 
       // Find all matching recipes — buildings with multiple recipes cycle through them
       const matchingRecipes = RECIPE_DEFS.filter(r => r.buildingType === bld.type);
@@ -169,6 +176,88 @@ export class ProductionSystem {
       if (bld.type === BuildingType.FORESTER_LODGE && pos) {
         this.updateForester(id, pos, bld, workerCount);
       }
+    }
+  }
+
+  /** Handle crop field growth stages */
+  private updateCropField(id: number, bld: any, producer: any, seasonData: any): void {
+    const workerCount = this.countWorkersAtBuilding(id);
+    producer.workerCount = workerCount;
+
+    // Initialize crop stage
+    if (producer.cropStage === undefined) producer.cropStage = CropStage.FALLOW;
+    if (producer.cropGrowthTimer === undefined) producer.cropGrowthTimer = 0;
+
+    // Winter kills crops that aren't harvested
+    const subSeason = this.game.state.subSeason;
+    if (subSeason >= Season.EARLY_WINTER && subSeason <= Season.LATE_WINTER) {
+      if (producer.cropStage > CropStage.FALLOW && producer.cropStage < CropStage.READY) {
+        producer.cropStage = CropStage.FALLOW;
+        producer.cropGrowthTimer = 0;
+        producer.active = false;
+      }
+      return; // No crop activity in winter
+    }
+
+    if (workerCount === 0) {
+      producer.active = false;
+      return;
+    }
+
+    producer.active = true;
+
+    // Fallow → Planted (workers plant seeds in spring)
+    if (producer.cropStage === CropStage.FALLOW) {
+      if (seasonData.cropGrowth > 0) {
+        producer.cropStage = CropStage.PLANTED;
+        producer.cropGrowthTimer = 0;
+      }
+      return;
+    }
+
+    // Ready → Harvest
+    if (producer.cropStage === CropStage.READY) {
+      // Harvest the crops
+      const recipe = RECIPE_DEFS.find(r => r.buildingType === BuildingType.CROP_FIELD);
+      if (recipe) {
+        for (const [res, amount] of Object.entries(recipe.outputs)) {
+          let produced = Math.ceil((amount as number) * CROP_HARVEST_YIELD_MULT);
+          // Educated bonus
+          const educatedCount = this.countEducatedWorkers(id);
+          if (educatedCount > 0) {
+            produced = Math.ceil(produced * EDUCATION_BONUS);
+          }
+          this.game.addResource(res, produced);
+        }
+      }
+      // Reset to fallow after harvest
+      producer.cropStage = CropStage.FALLOW;
+      producer.cropGrowthTimer = 0;
+      return;
+    }
+
+    // Growth: advance timer based on season, weather, workers, and festival effects
+    let growthRate = seasonData.cropGrowth;
+    growthRate *= this.game.weatherSystem.getCropWeatherMult();
+    growthRate *= (workerCount / (bld.maxWorkers || 1));
+
+    // Planting Day festival effect
+    if (this.game.festivalSystem.hasActiveEffect('planting_day')) {
+      growthRate *= PLANTING_DAY_CROP_MULT;
+    }
+
+    // Trait bonus
+    const traitBonus = this.getTraitWorkBonus(id);
+    growthRate *= (1 + traitBonus);
+
+    if (growthRate <= 0) return;
+
+    producer.cropGrowthTimer += growthRate;
+
+    // Advance stage when timer reaches threshold
+    if (producer.cropGrowthTimer >= CROP_STAGE_TICKS) {
+      producer.cropGrowthTimer = 0;
+      producer.cropStage = Math.min(CropStage.READY, producer.cropStage + 1);
     }
   }
 

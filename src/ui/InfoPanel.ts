@@ -453,8 +453,27 @@ export class InfoPanel {
       // Producer info
       const producer = world.getComponent<any>(id, 'producer');
       if (producer) {
-        ctx.fillText(`Active: ${producer.active ? 'Yes' : 'No'}`, leftX, textY);
-        textY += 16;
+        // Crop field: show growth stage
+        if (building.type === 'crop_field' && producer.cropStage !== undefined) {
+          const stageNames = ['Fallow', 'Planted', 'Sprouting', 'Growing', 'Flowering', 'Ready to Harvest'];
+          const stageColors = ['#8a7d6b', '#6a6030', '#4a7733', '#55aa33', '#66bb44', '#ccaa33'];
+          const stage = producer.cropStage as number;
+          ctx.fillStyle = stageColors[stage] || '#aaaaaa';
+          ctx.font = 'bold 12px monospace';
+          ctx.fillText(`Crops: ${stageNames[stage] || 'Unknown'}`, leftX, textY);
+          textY += 16;
+
+          // Growth progress bar within current stage
+          if (stage > 0 && stage < 5) {
+            const progress = ((producer.cropGrowthTimer || 0) / 120) * 100;
+            this.drawBar(ctx, leftX, textY, w - 20, 'Growth', Math.min(100, progress), stageColors[stage]);
+            textY += 18;
+          }
+        } else {
+          ctx.fillStyle = '#aaaaaa';
+          ctx.fillText(`Active: ${producer.active ? 'Yes' : 'No'}`, leftX, textY);
+          textY += 16;
+        }
       }
     }
   }

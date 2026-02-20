@@ -721,6 +721,7 @@ export class Game {
       id: EntityId; x: number; y: number; w: number; h: number;
       category: string; completed: boolean; progress: number; name: string;
       type: string; isValidTarget?: boolean; isFullOrInvalid?: boolean;
+      cropStage?: number;
     }> = [];
     const positions = this.world.getComponentStore<any>('position');
     const buildings = this.world.getComponentStore<any>('building');
@@ -749,6 +750,13 @@ export class Game {
         }
       }
 
+      // Get crop stage if this is a crop field
+      let cropStage: number | undefined;
+      const producer = this.world.getComponent<any>(id, 'producer');
+      if (bld.type === BuildingType.CROP_FIELD && producer) {
+        cropStage = producer.cropStage;
+      }
+
       result.push({
         id,
         x: pos.tileX,
@@ -762,6 +770,7 @@ export class Game {
         type: bld.type,
         isValidTarget,
         isFullOrInvalid,
+        cropStage,
       });
     }
     return result;

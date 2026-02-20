@@ -1,6 +1,6 @@
 import { Camera } from '../map/Camera';
 import { TileMap } from '../map/TileMap';
-import { TileType, TILE_SIZE, HUD_HEIGHT, TICKS_PER_SUB_SEASON, TICKS_PER_YEAR, DAYS_PER_YEAR } from '../constants';
+import { TileType, TILE_SIZE, HUD_HEIGHT, TICKS_PER_SUB_SEASON, TICKS_PER_YEAR, DAYS_PER_YEAR, CropStage } from '../constants';
 import { GameState, EntityId, FestivalType } from '../types';
 import { Settings } from '../Settings';
 
@@ -68,6 +68,7 @@ export class RenderSystem {
         id: EntityId; x: number; y: number; w: number; h: number;
         category: string; completed: boolean; progress: number; name: string;
         type?: string; isValidTarget?: boolean; isFullOrInvalid?: boolean;
+        cropStage?: number;
       }>;
       ghosts?: Array<{ x: number; y: number; w: number; h: number; valid: boolean }>;
       drawParticles?: (ctx: CanvasRenderingContext2D) => void;
@@ -241,7 +242,7 @@ export class RenderSystem {
 
   private drawBuilding(
     ctx: CanvasRenderingContext2D,
-    b: { x: number; y: number; w: number; h: number; category: string; completed: boolean; progress: number; name: string; isValidTarget?: boolean; isFullOrInvalid?: boolean },
+    b: { x: number; y: number; w: number; h: number; category: string; completed: boolean; progress: number; name: string; isValidTarget?: boolean; isFullOrInvalid?: boolean; type?: string; cropStage?: number },
   ): void {
     const px = b.x * TILE_SIZE;
     const py = b.y * TILE_SIZE;
@@ -251,11 +252,16 @@ export class RenderSystem {
     const color = BUILDING_COLORS[b.category] || '#888';
 
     if (b.completed) {
-      ctx.fillStyle = color;
-      ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+      // Special crop field rendering with growth stages
+      if (b.type === 'crop_field' && b.cropStage !== undefined) {
+        this.drawCropField(ctx, px, py, pw, ph, b.cropStage);
+      } else {
+        ctx.fillStyle = color;
+        ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+      }
     } else {
       // Under construction - show progress
       ctx.fillStyle = '#555';
@@ -386,6 +392,74 @@ export class RenderSystem {
       ctx.beginPath();
       ctx.arc(px, py, radius + 3, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  private drawCropField(ctx: CanvasRenderingContext2D, px: number, py: number, pw: number, ph: number, stage: number): void {
+    // Base soil color
+    const soilColors: Record<number, string> = {
+      [CropStage.FALLOW]: '#6b5b3e',
+      [CropStage.PLANTED]: '#5a4e35',
+      [CropStage.SPROUTING]: '#4a6030',
+      [CropStage.GROWING]: '#3a7030',
+      [CropStage.FLOWERING]: '#3a8030',
+      [CropStage.READY]: '#4a9030',
+    };
+
+    ctx.fillStyle = soilColors[stage] || '#6b5b3e';
+    ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+
+    // Draw crop rows
+    if (stage >= CropStage.PLANTED) {
+      const rowSpacing = TILE_SIZE;
+      const plantHeight = stage === CropStage.PLANTED ? 2
+        : stage === CropStage.SPROUTING ? 5
+        : stage === CropStage.GROWING ? 10
+        : stage === CropStage.FLOWERING ? 14
+        : 16; // READY
+
+      const plantColor = stage === CropStage.PLANTED ? '#3a5525'
+        : stage === CropStage.SPROUTING ? '#4a7733'
+        : stage === CropStage.GROWING ? '#55aa33'
+        : stage === CropStage.FLOWERING ? '#66bb44'
+        : '#ccaa33'; // READY (golden)
+
+      ctx.fillStyle = plantColor;
+
+      for (let ry = py + 8; ry < py + ph - 4; ry += rowSpacing) {
+        for (let rx = px + 6; rx < px + pw - 4; rx += 10) {
+          ctx.fillRect(rx, ry - plantHeight, 2, plantHeight);
+          // Add leaves/flowers at higher stages
+          if (stage >= CropStage.GROWING) {
+            ctx.fillRect(rx - 2, ry - plantHeight + 2, 6, 2);
+          }
+          if (stage === CropStage.FLOWERING) {
+            ctx.fillStyle = '#ffdd55';
+            ctx.fillRect(rx - 1, ry - plantHeight - 1, 4, 3);
+            ctx.fillStyle = plantColor;
+          }
+          if (stage === CropStage.READY) {
+            ctx.fillStyle = '#ddaa22';
+            ctx.fillRect(rx - 1, ry - plantHeight - 2, 4, 4);
+            ctx.fillStyle = plantColor;
+          }
+        }
+      }
+    }
+
+    // Fallow: draw furrow lines
+    if (stage === CropStage.FALLOW) {
+      ctx.strokeStyle = '#5a4a30';
+      ctx.lineWidth = 1;
+      for (let ry = py + 8; ry < py + ph - 4; ry += TILE_SIZE) {
+        ctx.beginPath();
+        ctx.moveTo(px + 4, ry);
+        ctx.lineTo(px + pw - 4, ry);
+        ctx.stroke();
+      }
     }
   }
 

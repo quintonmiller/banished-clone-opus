@@ -325,6 +325,21 @@ export const TRAIT_WANDER_HAPPINESS: Partial<Record<PersonalityTrait, number>> =
 export const MAX_TRAITS_PER_CITIZEN = 2;
 export const ALL_TRAITS: PersonalityTrait[] = Object.values(PersonalityTrait);
 
+// Crop Growth Stages
+export const CropStage = {
+  FALLOW: 0,      // nothing planted
+  PLANTED: 1,     // seeds in ground
+  SPROUTING: 2,   // small green shoots
+  GROWING: 3,     // mid-height plants
+  FLOWERING: 4,   // near-mature with flowers
+  READY: 5,       // ready to harvest
+} as const;
+export type CropStage = (typeof CropStage)[keyof typeof CropStage];
+
+export const CROP_STAGE_TICKS = 120;              // base ticks per growth stage (modified by season/weather)
+export const CROP_WINTER_KILL = true;              // crops die if not harvested before winter
+export const CROP_HARVEST_YIELD_MULT = 1.2;        // bonus yield for fully grown crops vs old flat rate
+
 // Cooking / Meal quality
 export const COOKED_MEAL_RESTORE = 45;          // cooked food restores 45 food (vs 30 raw)
 export const COOKED_MEAL_COST = 2;              // cooked meals cost 2 units (vs 3 raw)
