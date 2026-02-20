@@ -74,5 +74,6 @@ export interface SaveData {
     storage: { tickCounter: number };
     particle: { tickCounter: number };
     festival: { celebrated: number[] };
+    livestock?: { livestock: [number, any][] };
   };
 }

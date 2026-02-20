@@ -180,6 +180,36 @@ export const BUILDING_DEFS: Record<string, BuildingDef> = {
     constructionWork: 250,       // 5 workers → 22h
     description: 'Cooks raw ingredients into meals. Cooked food restores more and gives buffs. 2 workers.',
   },
+  [BuildingType.CHICKEN_COOP]: {
+    type: BuildingType.CHICKEN_COOP,
+    name: 'Chicken Coop',
+    category: BuildingCategory.FOOD,
+    width: 3, height: 3,
+    costLog: 20, costStone: 8, costIron: 0,
+    maxWorkers: 1, workRadius: 0,
+    constructionWork: 150,       // 5 workers → 13h
+    description: 'Raises chickens for eggs and feathers. Needs hay to feed them. 1 herder.',
+  },
+  [BuildingType.PASTURE]: {
+    type: BuildingType.PASTURE,
+    name: 'Pasture',
+    category: BuildingCategory.FOOD,
+    width: 6, height: 6,
+    costLog: 16, costStone: 0, costIron: 0,
+    maxWorkers: 1, workRadius: 0,
+    constructionWork: 80,        // 5 workers → 7h (fencing)
+    description: 'Fenced area for cattle. Produces milk, wool, and leather. Needs hay. 1 herder.',
+  },
+  [BuildingType.DAIRY]: {
+    type: BuildingType.DAIRY,
+    name: 'Dairy',
+    category: BuildingCategory.RESOURCE,
+    width: 3, height: 3,
+    costLog: 30, costStone: 20, costIron: 4,
+    maxWorkers: 1, workRadius: 0,
+    constructionWork: 200,       // 5 workers → 18h
+    description: 'Turns milk into cheese. 1 worker.',
+  },
   [BuildingType.TAVERN]: {
     type: BuildingType.TAVERN,
     name: 'Tavern',

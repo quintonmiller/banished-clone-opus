@@ -11,6 +11,7 @@ import {
   CropStage, CROP_STAGE_TICKS, CROP_HARVEST_YIELD_MULT, Season,
   SKILL_EFFICIENCY_PER_LEVEL, SKILL_MASTERY_BONUS_CHANCE,
   SKILL_MAX_LEVEL, PROFESSION_SKILL_MAP,
+  HAY_FROM_WHEAT,
 } from '../constants';
 
 export class ProductionSystem {
@@ -241,6 +242,8 @@ export class ProductionSystem {
           this.game.addResource(res, produced);
         }
       }
+      // Harvest also produces hay (straw from wheat stalks)
+      this.game.addResource(ResourceType.HAY, HAY_FROM_WHEAT * workerCount);
       // Reset to fallow after harvest
       producer.cropStage = CropStage.FALLOW;
       producer.cropGrowthTimer = 0;

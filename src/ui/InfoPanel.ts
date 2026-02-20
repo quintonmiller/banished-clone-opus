@@ -507,6 +507,21 @@ export class InfoPanel {
           textY += 16;
         }
       }
+
+      // Livestock info
+      if (building.type === 'chicken_coop' || building.type === 'pasture') {
+        const lsData = this.game.livestockSystem.getLivestockData(id);
+        if (lsData) {
+          const animalName = building.type === 'chicken_coop' ? 'Chickens' : 'Cattle';
+          const cap = building.type === 'chicken_coop' ? 8 : 4;
+          ctx.fillStyle = '#cccccc';
+          ctx.font = '12px monospace';
+          ctx.fillText(`${animalName}: ${lsData.animalCount}/${cap}`, leftX, textY);
+          textY += 16;
+          this.drawBar(ctx, leftX, textY, w - 20, 'Health', lsData.health, '#44aa44');
+          textY += 18;
+        }
+      }
     }
   }
 
@@ -534,6 +549,8 @@ export class InfoPanel {
       case 'baking': return 'Baking';
       case 'drinking': return 'At Tavern';
       case 'serving': return 'Serving';
+      case 'herding': return 'Herding';
+      case 'dairying': return 'Making Cheese';
       default: return activity.charAt(0).toUpperCase() + activity.slice(1);
     }
   }

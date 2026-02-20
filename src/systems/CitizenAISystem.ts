@@ -677,6 +677,8 @@ export class CitizenAISystem {
       case Profession.BUILDER: return 'building';
       case Profession.BAKER: return 'baking';
       case Profession.BARKEEP: return 'serving';
+      case Profession.HERDER: return 'herding';
+      case Profession.DAIRYMAID: return 'dairying';
       default: return 'working';
     }
   }

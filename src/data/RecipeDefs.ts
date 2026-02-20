@@ -103,4 +103,18 @@ export const RECIPE_DEFS: RecipeDef[] = [
     outputs: { [ResourceType.VEGETABLE_SOUP]: 3 },
     cooldownTicks: 180,  // ~2.4h per batch
   },
+  // Dairy: milk → cheese
+  {
+    buildingType: BuildingType.DAIRY,
+    inputs: { [ResourceType.MILK]: 3 },
+    outputs: { [ResourceType.CHEESE]: 2 },
+    cooldownTicks: 200,  // ~2.7h per batch
+  },
+  // Tailor also makes cloth from wool
+  {
+    buildingType: BuildingType.TAILOR,
+    inputs: { [ResourceType.WOOL]: 3 },
+    outputs: { [ResourceType.CLOTH]: 2 },
+    cooldownTicks: 250,  // ~3.3h per bolt
+  },
 ];

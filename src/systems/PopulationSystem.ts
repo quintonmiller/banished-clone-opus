@@ -525,6 +525,9 @@ export class PopulationSystem {
       [BuildingType.TRADING_POST]: Profession.TRADER,
       [BuildingType.BAKERY]: Profession.BAKER,
       [BuildingType.TAVERN]: Profession.BARKEEP,
+      [BuildingType.CHICKEN_COOP]: Profession.HERDER,
+      [BuildingType.PASTURE]: Profession.HERDER,
+      [BuildingType.DAIRY]: Profession.DAIRYMAID,
     };
     return map[type] || Profession.LABORER;
   }

@@ -309,6 +309,8 @@ export class RenderSystem {
     baking:      { symbol: 'K',  color: '#dd8844' },
     drinking:    { symbol: '\u2615', color: '#cc8844' },
     serving:     { symbol: 'B',  color: '#cc8844' },
+    herding:     { symbol: 'H',  color: '#88aa44' },
+    dairying:    { symbol: 'D',  color: '#eeddaa' },
   };
 
   private drawCitizen(

@@ -335,6 +335,7 @@ export const SkillType = {
   GATHERING: 'gathering',
   FISHING: 'fishing',
   HUNTING: 'hunting',
+  HERDING: 'herding',
 } as const;
 export type SkillType = (typeof SkillType)[keyof typeof SkillType];
 
@@ -356,6 +357,8 @@ export const PROFESSION_SKILL_MAP: Partial<Record<string, SkillType>> = {
   baker: SkillType.COOKING,
   builder: SkillType.BUILDING,
   laborer: SkillType.BUILDING,
+  herder: SkillType.HERDING,
+  dairymaid: SkillType.COOKING,
 };
 
 // Crop Growth Stages
@@ -392,6 +395,19 @@ export const HARVEST_FESTIVAL_SPOILAGE_MULT = 0.5;   // 50% less food spoilage
 export const FROST_FAIR_DISEASE_MULT = 0.5;           // 50% less disease chance
 export const PLANTING_DAY_CROP_MULT = 1.2;            // 20% crop growth boost
 export const MIDSUMMER_HAPPINESS_MULT = 1.5;          // 50% more happiness gain
+
+// Animals & Livestock
+export const CHICKEN_CAPACITY = 8;                 // max chickens per coop
+export const CATTLE_CAPACITY = 4;                   // max cattle per pasture
+export const ANIMAL_FEED_PER_TICK = 0.005;          // hay consumed per animal per tick
+export const ANIMAL_STARVE_HEALTH_DAMAGE = 0.02;    // health lost per tick when starving
+export const ANIMAL_COLD_HEALTH_DAMAGE = 0.01;      // health lost per tick when cold (no shelter in winter)
+export const CHICKEN_EGG_TICKS = 200;               // ticks per egg production cycle
+export const CHICKEN_FEATHER_TICKS = 600;           // ticks per feather production
+export const CATTLE_MILK_TICKS = 300;               // ticks per milk production cycle
+export const CATTLE_WOOL_TICKS = 800;               // ticks per wool production
+export const ANIMAL_BREED_CHANCE = 0.002;            // chance per tick to breed (if capacity allows)
+export const HAY_FROM_WHEAT = 2;                     // hay produced per wheat at crop field
 
 // Tavern & Social Buildings
 export const TAVERN_HAPPINESS_PER_TICK = 0.03;    // happiness gained per tick while at tavern
@@ -457,6 +473,14 @@ export const ResourceType = {
   FISH_STEW: 'fish_stew',
   BERRY_PIE: 'berry_pie',
   VEGETABLE_SOUP: 'vegetable_soup',
+  // Animal products
+  EGGS: 'eggs',
+  MILK: 'milk',
+  CHEESE: 'cheese',
+  FEATHERS: 'feathers',
+  HAY: 'hay',
+  WOOL: 'wool',
+  CLOTH: 'cloth',
 } as const;
 export type ResourceType = (typeof ResourceType)[keyof typeof ResourceType];
 
@@ -476,9 +500,15 @@ export const COOKED_FOOD_TYPES: ResourceType[] = [
   ResourceType.FISH_STEW,
   ResourceType.BERRY_PIE,
   ResourceType.VEGETABLE_SOUP,
+  ResourceType.CHEESE,
 ];
 
-export const ALL_FOOD_TYPES: ResourceType[] = [...FOOD_TYPES, ...COOKED_FOOD_TYPES];
+export const ANIMAL_FOOD_TYPES: ResourceType[] = [
+  ResourceType.EGGS,
+  ResourceType.MILK,
+];
+
+export const ALL_FOOD_TYPES: ResourceType[] = [...FOOD_TYPES, ...COOKED_FOOD_TYPES, ...ANIMAL_FOOD_TYPES];
 
 export const BuildingType = {
   WOODEN_HOUSE: 'wooden_house',
@@ -502,6 +532,9 @@ export const BuildingType = {
   TAVERN: 'tavern',
   WELL: 'well',
   CHAPEL: 'chapel',
+  CHICKEN_COOP: 'chicken_coop',
+  PASTURE: 'pasture',
+  DAIRY: 'dairy',
 } as const;
 export type BuildingType = (typeof BuildingType)[keyof typeof BuildingType];
 
@@ -522,6 +555,8 @@ export const Profession = {
   BUILDER: 'builder',
   BAKER: 'baker',
   BARKEEP: 'barkeep',
+  HERDER: 'herder',
+  DAIRYMAID: 'dairymaid',
 } as const;
 export type Profession = (typeof Profession)[keyof typeof Profession];
 
