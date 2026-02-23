@@ -441,7 +441,13 @@ export class InfoPanel {
           const labelW = ctx.measureText('Task: Construct ').width;
           ctx.fillText('Task: Construct ', leftX, textY);
           this.drawLink(ctx, bldName, leftX + labelW, textY, movement.targetEntity);
-        } else if (worker && worker.workplaceId != null && world.entityExists(worker.workplaceId)) {
+        } else if (activity === 'freezing' && movement?.targetEntity != null && world.entityExists(movement.targetEntity)) {
+          const targetBld = world.getComponent<any>(movement.targetEntity, 'building');
+          const bldName = targetBld?.name || 'Shelter';
+          const labelW = ctx.measureText('Task: Seeking warmth at ').width;
+          ctx.fillText('Task: Seeking warmth at ', leftX, textY);
+          this.drawLink(ctx, bldName, leftX + labelW, textY, movement.targetEntity);
+        } else if (activity !== 'freezing' && worker && worker.workplaceId != null && world.entityExists(worker.workplaceId)) {
           const wpBld = world.getComponent<any>(worker.workplaceId, 'building');
           const wpName = wpBld?.name || 'Workplace';
           const actLabel = this.activityLabel(activity);

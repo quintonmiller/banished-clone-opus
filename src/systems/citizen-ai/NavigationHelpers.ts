@@ -11,6 +11,8 @@ import {
 import { distance } from '../../utils/MathUtils';
 
 export class NavigationHelpers {
+  private static readonly MAX_BUILDING_ENTRY_ATTEMPTS = 32;
+
   constructor(private game: Game) {}
 
   /** Try to path to a building. Returns true if a path was set. */
@@ -23,37 +25,35 @@ export class NavigationHelpers {
     const bw = bld?.width || 1;
     const bh = bld?.height || 1;
 
-    // Fallback perimeter entry points
-    const candidates = [
-      { x: targetPos.tileX + Math.floor(bw / 2), y: targetPos.tileY + bh },
-      { x: targetPos.tileX + Math.floor(bw / 2), y: targetPos.tileY - 1 },
-      { x: targetPos.tileX - 1, y: targetPos.tileY + Math.floor(bh / 2) },
-      { x: targetPos.tileX + bw, y: targetPos.tileY + Math.floor(bh / 2) },
-      { x: targetPos.tileX, y: targetPos.tileY + bh },
-      { x: targetPos.tileX + bw - 1, y: targetPos.tileY + bh },
-    ];
-
-    // Prefer door entry tile if available
     const doorDef: DoorDef | undefined = bld?.doorDef;
-    if (doorDef) {
-      const entry = getDoorEntryTile(targetPos.tileX, targetPos.tileY, doorDef);
-      // Prepend door entry, deduplicate
-      const isDuplicate = candidates.some(c => c.x === entry.x && c.y === entry.y);
-      if (!isDuplicate) {
-        candidates.unshift(entry);
-      } else {
-        // Move the duplicate to front
-        const idx = candidates.findIndex(c => c.x === entry.x && c.y === entry.y);
-        if (idx > 0) {
-          candidates.unshift(candidates.splice(idx, 1)[0]);
-        }
+    const doorEntry = doorDef ? getDoorEntryTile(targetPos.tileX, targetPos.tileY, doorDef) : null;
+    const candidates = this.getBuildingEntryCandidates(
+      pos.tileX,
+      pos.tileY,
+      targetPos.tileX,
+      targetPos.tileY,
+      bw,
+      bh,
+      doorEntry,
+    );
+
+    // Prefer door entry tile if available and walkable
+    if (doorDef && doorEntry && this.game.tileMap.isWalkable(doorEntry.x, doorEntry.y)) {
+      const result = this.game.pathfinder.findPath(pos.tileX, pos.tileY, doorEntry.x, doorEntry.y);
+      if (result.found && result.path.length > 0) {
+        const movement = this.game.world.getComponent<any>(id, 'movement')!;
+        movement.path = result.path;
+        movement.targetEntity = targetId;
+        movement.stuckTicks = 0;
+        return true;
       }
     }
 
+    let attempts = 0;
     for (const target of candidates) {
-      if (!this.game.tileMap.isWalkable(target.x, target.y)) continue;
-
+      if (attempts >= NavigationHelpers.MAX_BUILDING_ENTRY_ATTEMPTS) break;
       const result = this.game.pathfinder.findPath(pos.tileX, pos.tileY, target.x, target.y);
+      attempts++;
       if (result.found && result.path.length > 0) {
         const movement = this.game.world.getComponent<any>(id, 'movement')!;
         movement.path = result.path;
@@ -64,6 +64,52 @@ export class NavigationHelpers {
     }
 
     return false;
+  }
+
+  /** Build deduped, walkable perimeter-adjacent entry tiles ordered by proximity. */
+  private getBuildingEntryCandidates(
+    fromX: number,
+    fromY: number,
+    buildX: number,
+    buildY: number,
+    width: number,
+    height: number,
+    doorEntry: { x: number; y: number } | null,
+  ): Array<{ x: number; y: number }> {
+    const seen = new Set<string>();
+    const candidates: Array<{ x: number; y: number }> = [];
+
+    const pushCandidate = (x: number, y: number): void => {
+      const key = `${x},${y}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (!this.game.tileMap.isWalkable(x, y)) return;
+      candidates.push({ x, y });
+    };
+
+    // Top and bottom edges including outside corners.
+    for (let x = buildX - 1; x <= buildX + width; x++) {
+      pushCandidate(x, buildY - 1);
+      pushCandidate(x, buildY + height);
+    }
+
+    // Left and right edges.
+    for (let y = buildY; y <= buildY + height - 1; y++) {
+      pushCandidate(buildX - 1, y);
+      pushCandidate(buildX + width, y);
+    }
+
+    // Keep any door-adjacent tile near the front.
+    candidates.sort((a, b) => {
+      const aDoorBias = doorEntry && a.x === doorEntry.x && a.y === doorEntry.y ? -1 : 0;
+      const bDoorBias = doorEntry && b.x === doorEntry.x && b.y === doorEntry.y ? -1 : 0;
+      if (aDoorBias !== bDoorBias) return aDoorBias - bDoorBias;
+      const da = Math.abs(a.x - fromX) + Math.abs(a.y - fromY);
+      const db = Math.abs(b.x - fromX) + Math.abs(b.y - fromY);
+      return da - db;
+    });
+
+    return candidates;
   }
 
   /** Check if a building type represents an indoor (movement-blocking) structure */
