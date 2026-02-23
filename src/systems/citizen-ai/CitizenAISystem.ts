@@ -194,9 +194,6 @@ export class CitizenAISystem {
         && needs.warmth >= COLD_CRITICAL_WARMTH_THRESHOLD;
 
       if (isColdSheltering && !canLeaveShelterForUrgentWork) {
-        citizen.activity = 'freezing';
-        this.abortCurrentMovement(movement);
-
         // If they were inside a non-home building, exit unless it's a warm heated building.
         if (citizen.insideBuildingId != null && citizen.insideBuildingId !== family?.homeId) {
           const shelterBld = this.game.world.getComponent<any>(citizen.insideBuildingId, 'building');
@@ -208,8 +205,13 @@ export class CitizenAISystem {
         if (needs.warmth < FREEZING_WARMTH_THRESHOLD) {
           logger.info('AI', `${citizen.name} (${id}) freezing — warmth=${needs.warmth.toFixed(1)}, seeking warmth`);
         }
-        this.needs.seekWarmth(id);
-        continue;
+
+        // Only shelter-lock when a reachable warm place actually exists.
+        // If none exists, allow normal work logic (especially construction) to proceed.
+        if (this.needs.seekWarmth(id)) {
+          citizen.activity = 'freezing';
+          continue;
+        }
       }
 
       // Skip if actively moving along a path (retain last activity)
