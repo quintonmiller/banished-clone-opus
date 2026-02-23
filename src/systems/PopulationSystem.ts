@@ -773,6 +773,15 @@ export class PopulationSystem {
     if (!pos) return;
 
     const baby = this.spawnCitizen(pos.tileX, pos.tileY, true);
+
+    // Baby takes mother's last name
+    const mother = world.getComponent<any>(femaleId, 'citizen');
+    const babyCit = world.getComponent<any>(baby, 'citizen');
+    if (mother && babyCit) {
+      babyCit.lastName = mother.lastName;
+      babyCit.name = formatCitizenName(babyCit.firstName, babyCit.lastName);
+    }
+
     fam.childrenIds.push(baby);
 
     // Add baby to house if there's room
