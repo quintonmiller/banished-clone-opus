@@ -185,6 +185,23 @@ export class EventLog {
   addEntry(category: string, text: string, color: string,
     entityId?: number, tileX?: number, tileY?: number): void {
     const s = this.game.state;
+    const lastEntry = this.entries[this.entries.length - 1];
+
+    if (lastEntry && lastEntry.category === category && lastEntry.text === text) {
+      lastEntry.repeatCount = (lastEntry.repeatCount ?? 1) + 1;
+      lastEntry.tick = s.tick;
+      lastEntry.year = s.year;
+      lastEntry.subSeason = s.subSeason;
+      lastEntry.color = color;
+      lastEntry.entityId = entityId;
+      lastEntry.tileX = tileX;
+      lastEntry.tileY = tileY;
+
+      const maxScroll = Math.max(0, this.entries.length - EVENT_LOG_VISIBLE_ROWS);
+      this.scrollOffset = maxScroll;
+      return;
+    }
+
     this.entries.push({
       id: this.nextId++,
       tick: s.tick,
@@ -385,7 +402,9 @@ export class EventLog {
       ctx.font = '11px monospace';
 
       // Truncate text to fit
-      let displayText = entry.text;
+      let displayText = entry.repeatCount && entry.repeatCount > 1
+        ? `${entry.text} (${entry.repeatCount})`
+        : entry.text;
       while (ctx.measureText(displayText).width > maxTextW && displayText.length > 3) {
         displayText = displayText.slice(0, -4) + '...';
       }

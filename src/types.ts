@@ -137,6 +137,7 @@ export interface EventLogEntry {
   subSeason: number;
   category: string;
   text: string;
+  repeatCount?: number;
   color: string;
   entityId?: number;
   tileX?: number;
