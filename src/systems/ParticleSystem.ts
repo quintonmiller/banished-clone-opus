@@ -3,6 +3,7 @@ import {
   TILE_SIZE, MAX_PARTICLES, PARTICLE_SPAWN_INTERVAL,
   SMOKE_SPAWN_CHANCE, SMOKE_MIN_WARMTH, SNOW_PARTICLES_PER_SPAWN,
   LEAF_SPAWN_CHANCE, FESTIVAL_LANTERN_COUNT,
+  FAIR_FLOURISH_PARTICLE_BURST,
 } from '../constants';
 import { SEASON_DATA } from '../data/SeasonDefs';
 
@@ -138,7 +139,7 @@ export class ParticleSystem {
     }
   }
 
-  /** Spawn lantern / sparkle particles around Town Hall during festivals */
+  /** Spawn lantern / sparkle particles around Town Hall during festivals (phase-aware) */
   private spawnFestivalParticles(): void {
     if (this.particles.length >= MAX_PARTICLES) return;
 
@@ -154,7 +155,13 @@ export class ParticleSystem {
 
     const lanternColors = ['#ffdd44', '#ff8833', '#ffaa22', '#ffcc66', '#ff6644'];
 
-    for (let i = 0; i < FESTIVAL_LANTERN_COUNT; i++) {
+    // Determine particle count based on phase
+    let count = FESTIVAL_LANTERN_COUNT;
+    if (fest.phase === 'gathering') {
+      count = Math.floor(FESTIVAL_LANTERN_COUNT * 1.5);
+    }
+
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.random() * TILE_SIZE * 4;
       const px = cx + Math.cos(angle) * dist;
@@ -170,6 +177,37 @@ export class ParticleSystem {
         size: 1.5 + Math.random() * 2,
         color: lanternColors[Math.floor(Math.random() * lanternColors.length)],
         alpha: 0.8,
+      });
+    }
+  }
+
+  /** Spawn a burst of bright particles for the fair flourish phase */
+  spawnFlourishBurst(townHallId: number): void {
+    const thPos = this.game.world.getComponent<any>(townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(townHallId, 'building');
+    if (!thPos || !thBld) return;
+
+    const cx = (thPos.tileX + thBld.width / 2) * TILE_SIZE;
+    const cy = (thPos.tileY + thBld.height / 2) * TILE_SIZE;
+
+    const burstColors = ['#ffdd44', '#ff8833', '#ffaa22', '#ffffff', '#44ddff', '#ffcc66', '#ff6644', '#88ff88'];
+
+    for (let i = 0; i < FAIR_FLOURISH_PARTICLE_BURST; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 1.5;
+      const px = cx + (Math.random() - 0.5) * TILE_SIZE * 2;
+      const py = cy + (Math.random() - 0.5) * TILE_SIZE * 2;
+
+      this.particles.push({
+        x: px,
+        y: py,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.5,
+        life: 40 + Math.floor(Math.random() * 40),
+        maxLife: 80,
+        size: 2 + Math.random() * 3,
+        color: burstColors[Math.floor(Math.random() * burstColors.length)],
+        alpha: 1,
       });
     }
   }

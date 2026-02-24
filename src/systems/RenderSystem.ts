@@ -667,6 +667,26 @@ export class RenderSystem {
     herding:     { symbol: 'H',  color: '#88aa44' },
     dairying:    { symbol: 'D',  color: '#eeddaa' },
     returning:   { symbol: 'R',  color: '#ddaa44' },
+    // Fair activities — generic
+    dancing:         { symbol: 'D',  color: '#ff88cc' },
+    arm_wrestling:   { symbol: 'A',  color: '#dd8844' },
+    storytelling:    { symbol: 'S',  color: '#ddcc88' },
+    juggling:        { symbol: 'J',  color: '#ffaa44' },
+    singing:         { symbol: '\u266A', color: '#ffdd44' },
+    feasting:        { symbol: 'F',  color: '#ffcc33' },
+    games:           { symbol: 'G',  color: '#88dd44' },
+    // Fair activities — spring
+    seed_trading:    { symbol: 'S',  color: '#66cc44' },
+    flower_crowns:   { symbol: '\u273F', color: '#ff88aa' },
+    // Fair activities — summer
+    bonfire_dancing: { symbol: '\u2668', color: '#ff6633' },
+    foot_race:       { symbol: 'R',  color: '#44bbdd' },
+    // Fair activities — autumn
+    pie_contest:     { symbol: 'P',  color: '#dd8844' },
+    apple_bobbing:   { symbol: 'A',  color: '#cc4422' },
+    // Fair activities — winter
+    ice_carving:     { symbol: '\u2744', color: '#aaddff' },
+    snowball_fight:  { symbol: '\u2746', color: '#cceeFF' },
   };
 
   private drawCitizen(

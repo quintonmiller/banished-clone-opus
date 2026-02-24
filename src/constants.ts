@@ -548,8 +548,8 @@ export const COOKED_MEAL_WARMTH_BOOST = 5;
 export const COOKED_MEAL_HAPPINESS_BOOST = 2;
 export const COOKED_MEAL_ENERGY_BOOST = 5;
 
-// ── Festivals ──────────────────────────────────────────────────
-export const FESTIVAL_DURATION_TICKS = 1 * DAY;               // a festival lasts 1 day
+// ── Festivals / Fairs ─────────────────────────────────────────
+export const FESTIVAL_DURATION_TICKS = Math.round(0.5 * DAY);  // a festival lasts half a day (morning to evening)
 export const FESTIVAL_HAPPINESS_BOOST = 15;
 export const FESTIVAL_HAPPINESS_PER_TICK = 0.02;
 export const FESTIVAL_GATHER_RADIUS = 8;
@@ -560,6 +560,28 @@ export const HARVEST_FESTIVAL_SPOILAGE_MULT = 0.5;
 export const FROST_FAIR_DISEASE_MULT = 0.5;
 export const PLANTING_DAY_CROP_MULT = 1.2;
 export const MIDSUMMER_HAPPINESS_MULT = 1.5;
+// ── Fair phases & timing ──────────────────────────────────────
+export const FAIR_MAIN_PHASE_RATIO = 0.70;                    // 70% of duration
+export const FAIR_GATHERING_PHASE_RATIO = 0.20;               // 20% of duration
+export const FAIR_FLOURISH_TICKS = 30;                         // ~3 seconds at 1x
+export const FAIR_CAMERA_ZOOM_DURATION_MS = 1500;
+export const FAIR_CAMERA_TARGET_ZOOM = 1.8;
+export const FAIR_GATHER_DISPERSE_RADIUS = 6;                 // tiles from TH center
+export const FAIR_VISITOR_COUNT_MIN = 2;
+export const FAIR_VISITOR_COUNT_MAX = 5;
+export const FAIR_VISITOR_SPAWN_MARGIN = 15;                   // tiles from map edge
+export const FAIR_FLOURISH_PARTICLE_BURST = 40;
+export const FAIR_ACTIVITY_CHANGE_INTERVAL = 60;               // ticks between activity reassignment
+export const FAIR_HAPPINESS_PER_ACTIVITY_TICK = 0.03;
+// ── Fair activity movement ───────────────────────────────────
+export const FAIR_ROAM_MOVE_INTERVAL = 40;                     // ticks between moves for roaming activities
+export const FAIR_ROAM_RADIUS = 3;                             // tiles from current position
+export const FAIR_RACE_MOVE_INTERVAL = 25;                     // ticks between racing re-targets
+export const FAIR_RACE_DISTANCE = 5;                           // tiles for race legs
+export const FAIR_SOCIAL_MOVE_INTERVAL = 60;                   // ticks between social clustering moves
+export const FAIR_SOCIAL_PROXIMITY = 4;                        // tiles to search for same-activity partner
+export const FAIR_IDLE_MOVE_INTERVAL = 80;                     // ticks between slight shifts for stationary activities
+export const FAIR_IDLE_SHIFT = 1;                              // tiles to shift for stationary activities
 
 // ── Milestones & Narrative Events ──────────────────────────────
 export const MILESTONE_CHECK_INTERVAL = 8 * HOUR;             // check every 8 hours

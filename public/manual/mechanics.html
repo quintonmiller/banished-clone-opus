@@ -166,14 +166,55 @@
       </div>
     </div>
 
-    <!-- Festivals -->
+    <!-- Festivals & Fairs -->
     <div class="panel" id="festivals">
-      <h2>Festivals</h2>
-      <p>Build a <a href="building.html?id=town_hall">Town Hall</a> to unlock seasonal festivals. Each festival lasts 1 day and provides both an immediate happiness boost and a lingering seasonal bonus.</p>
+      <h2>Fairs &amp; Festivals</h2>
+      <p>Build a <a href="building.html?id=town_hall">Town Hall</a> to unlock seasonal fairs. Each fair lasts from morning to evening, features traveling visitors, fair activities, and culminates in a reward choice.</p>
 
       <div id="festival-list" style="margin-top:0.5rem"></div>
 
-      <p style="margin-top:0.7rem">During festivals, all citizens receive <strong>+10 happiness</strong> immediately, plus a steady happiness gain while celebrating near the Town Hall. The special effect lingers for the rest of that season group (3 months).</p>
+      <h3>The Four Phases</h3>
+      <p>Each fair progresses through four distinct phases:</p>
+      <ol>
+        <li><strong>Main Phase</strong> (~70% of the fair): Citizens participate in season-themed activities (dancing, storytelling, pie contests, etc.) near the Town Hall. The camera automatically zooms to the festivities and game speed drops to 1&times;.</li>
+        <li><strong>Gathering Phase</strong> (~20%): All citizens converge on the Town Hall area, spreading out to avoid crowding. Particle effects increase.</li>
+        <li><strong>Flourish</strong> (~3 seconds): A burst of colorful particles marks the climax of the celebration.</li>
+        <li><strong>Summary</strong>: The game pauses and presents a summary of the season's progress along with <strong>3 reward choices</strong>.</li>
+      </ol>
+
+      <h3>Fair Activities</h3>
+      <p>During the main phase, citizens are assigned random activities and visually act them out. Dancers roam around, racers sprint across the fair grounds, storytellers and singers cluster together, and others mill about in the fair area. Generic activities (dancing, juggling, singing, feasting) are available at every fair. Each season also has two unique activities:</p>
+      <ul>
+        <li><strong>Spring:</strong> Seed Trading, Flower Crowns</li>
+        <li><strong>Summer:</strong> Bonfire Dancing, Foot Race</li>
+        <li><strong>Autumn:</strong> Pie Contest, Apple Bobbing</li>
+        <li><strong>Winter:</strong> Ice Carving, Snowball Fight</li>
+      </ul>
+
+      <h3>Fair Visitors</h3>
+      <p>When a fair begins, 2&ndash;5 traveling visitors spawn at the map edges and walk toward the Town Hall. These visitors are potential recruits &mdash; some reward choices let you permanently recruit a skilled visitor as a citizen.</p>
+
+      <h3>Fair Rewards</h3>
+      <p>After the flourish, you choose one of three rewards. The quality and selection of rewards depends on your village's prosperity &mdash; thriving villages attract rarer options like skilled travelers and knowledge, while struggling villages receive more survival-oriented resource bundles. Resource bundle amounts also scale with prosperity. Rewards come in four categories:</p>
+      <ul>
+        <li><strong>Special Buildings:</strong> Unique structures like the Statue of the Founders (happiness aura) or Festival Pavilion (double future fair happiness).</li>
+        <li><strong>Skilled Travelers:</strong> Experienced workers join your settlement (e.g., a Level 3 farmer, a blacksmith with tools, or an entire family).</li>
+        <li><strong>Knowledge Unlocks:</strong> Temporary bonuses lasting 1 year &mdash; crop rotation (+20% yield), preservation methods (-50% spoilage), winter insulation (-30% firewood), and more.</li>
+        <li><strong>Resource Bundles:</strong> Immediate supplies like logs, stone, food, tools, or firewood.</li>
+      </ul>
+
+      <h3>Lingering Effects</h3>
+      <p>After the fair ends, the seasonal bonus lingers for the rest of that season group (3 months):</p>
+      <ul>
+        <li><strong>Planting Day:</strong> +20% crop growth</li>
+        <li><strong>Midsummer:</strong> +50% happiness gain</li>
+        <li><strong>Harvest Festival:</strong> -50% food spoilage</li>
+        <li><strong>Frost Fair:</strong> -50% disease chance</li>
+      </ul>
+
+      <div class="note tip">
+        Knowledge rewards stack with lingering festival effects and milestone bonuses. A well-timed Crop Rotation knowledge pick during Planting Day season gives a massive farming boost.
+      </div>
     </div>
 
     <!-- Milestones -->

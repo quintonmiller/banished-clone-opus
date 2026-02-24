@@ -7,6 +7,14 @@ export class Camera {
   screenWidth: number;
   screenHeight: number;
 
+  // Smooth animation state
+  private animTarget: { x: number; y: number; zoom: number } | null = null;
+  private animStartX = 0;
+  private animStartY = 0;
+  private animStartZoom = 1;
+  private animDuration = 0;
+  private animStartTime = 0;
+
   constructor(screenWidth: number, screenHeight: number) {
     this.screenWidth = screenWidth;
     this.screenHeight = screenHeight;
@@ -43,6 +51,44 @@ export class Camera {
     this.x = tileX * TILE_SIZE - this.screenWidth / (2 * this.zoom);
     this.y = tileY * TILE_SIZE - this.screenHeight / (2 * this.zoom);
     this.clamp();
+  }
+
+  /** Begin a smooth pan+zoom animation to the given tile position */
+  animateTo(tileX: number, tileY: number, targetZoom: number, durationMs: number): void {
+    this.animStartX = this.x;
+    this.animStartY = this.y;
+    this.animStartZoom = this.zoom;
+    // Compute target camera position to center on tile at target zoom
+    const targetX = tileX * TILE_SIZE - this.screenWidth / (2 * targetZoom);
+    const targetY = tileY * TILE_SIZE - this.screenHeight / (2 * targetZoom);
+    this.animTarget = { x: targetX, y: targetY, zoom: targetZoom };
+    this.animDuration = durationMs;
+    this.animStartTime = performance.now();
+  }
+
+  /** Update animation each frame. Returns true while animating. */
+  updateAnimation(): boolean {
+    if (!this.animTarget) return false;
+
+    const elapsed = performance.now() - this.animStartTime;
+    const t = Math.min(1, elapsed / this.animDuration);
+    // Ease-in-out cubic
+    const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    this.x = this.animStartX + (this.animTarget.x - this.animStartX) * ease;
+    this.y = this.animStartY + (this.animTarget.y - this.animStartY) * ease;
+    this.zoom = this.animStartZoom + (this.animTarget.zoom - this.animStartZoom) * ease;
+    this.clamp();
+
+    if (t >= 1) {
+      this.animTarget = null;
+    }
+    return true;
+  }
+
+  /** Query whether a smooth animation is in progress */
+  isAnimating(): boolean {
+    return this.animTarget !== null;
   }
 
   private clamp(): void {

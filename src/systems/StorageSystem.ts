@@ -68,7 +68,10 @@ export class StorageSystem {
       // Update warmth level based on firewood
       if (house.firewood > 0) {
         house.warmthLevel = Math.min(100, house.warmthLevel + HOUSE_WARMTH_GAIN_FROM_FIRE);
-        house.firewood -= HOUSE_FIREWOOD_CONSUMPTION;
+        let fwConsumption = HOUSE_FIREWOOD_CONSUMPTION;
+        const insulationBonus = this.game.festivalSystem.getFairBonus('insulation');
+        if (insulationBonus > 0) fwConsumption *= (1 - insulationBonus);
+        house.firewood -= fwConsumption;
         if (house.firewood < 0) house.firewood = 0;
       } else {
         logger.debug('STORAGE', `House (${id}) out of firewood — warmth dropping (${house.warmthLevel.toFixed(1)} → ${Math.max(0, house.warmthLevel - HOUSE_WARMTH_LOSS_NO_FIRE).toFixed(1)})`);
@@ -146,8 +149,11 @@ export class StorageSystem {
   /** Food spoils per-building — barns get the spoilage reduction for food stored in them */
   private spoilFood(): void {
     const world = this.game.world;
-    const festivalMult = this.game.festivalSystem.hasActiveEffect('harvest_festival')
+    let festivalMult = this.game.festivalSystem.hasActiveEffect('harvest_festival')
       ? HARVEST_FESTIVAL_SPOILAGE_MULT : 1.0;
+    // Fair knowledge bonus: preservation methods
+    const preservationBonus = this.game.festivalSystem.getFairBonus('preservation');
+    if (preservationBonus > 0) festivalMult *= (1 - preservationBonus);
     const allFoodTypes = ['food', ...ALL_FOOD_TYPES];
     let totalSpoiled = 0;
 

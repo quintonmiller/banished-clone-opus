@@ -142,6 +142,9 @@ export class ProductionSystem {
           if (this.game.festivalSystem.hasActiveEffect('planting_day')) {
             efficiency *= PLANTING_DAY_CROP_MULT;
           }
+          // Fair knowledge bonus: crop rotation
+          const cropRotationBonus = this.game.festivalSystem.getFairBonus('cropRotation');
+          if (cropRotationBonus > 0) efficiency *= (1 + cropRotationBonus);
           // Milestone crop growth bonus
           efficiency *= (1 + milestones.getBonus('crop_growth'));
         } else if (bld.type === BuildingType.HUNTING_CABIN) {
@@ -149,6 +152,8 @@ export class ProductionSystem {
           efficiency *= (1 + milestones.getBonus('gathering_speed'));
         } else if (bld.type === BuildingType.FISHING_DOCK) {
           efficiency *= seasonData.fishingRate;
+          const fishingBonus = this.game.festivalSystem.getFairBonus('fishingNets');
+          if (fishingBonus > 0) efficiency *= (1 + fishingBonus);
           efficiency *= (1 + milestones.getBonus('gathering_speed'));
         } else if (bld.type === BuildingType.HERBALIST) {
           efficiency *= seasonData.herbRate;
@@ -349,6 +354,10 @@ export class ProductionSystem {
     if (this.game.festivalSystem.hasActiveEffect('planting_day')) {
       growthRate *= PLANTING_DAY_CROP_MULT;
     }
+
+    // Fair knowledge bonus: crop rotation
+    const cropRotBonus = this.game.festivalSystem.getFairBonus('cropRotation');
+    if (cropRotBonus > 0) growthRate *= (1 + cropRotBonus);
 
     // Trait bonus
     const traitBonus = this.getTraitWorkBonus(id);

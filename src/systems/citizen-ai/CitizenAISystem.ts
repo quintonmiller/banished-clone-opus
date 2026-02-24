@@ -1,5 +1,5 @@
 import type { Game } from '../../Game';
-import { EntityId } from '../../types';
+import { EntityId, FairActivity } from '../../types';
 import { logger } from '../../utils/Logger';
 import {
   Profession, BuildingType, PersonalityTrait,
@@ -17,6 +17,11 @@ import {
   LEISURE_CAMPFIRE_HAPPINESS,
   TAVERN_HAPPINESS_PER_TICK,
   HEATED_BUILDING_TYPES, HEATED_BUILDING_WARMTH_THRESHOLD,
+  FAIR_GATHER_DISPERSE_RADIUS, FAIR_HAPPINESS_PER_ACTIVITY_TICK,
+  FAIR_ROAM_MOVE_INTERVAL, FAIR_ROAM_RADIUS,
+  FAIR_RACE_MOVE_INTERVAL, FAIR_RACE_DISTANCE,
+  FAIR_SOCIAL_MOVE_INTERVAL, FAIR_SOCIAL_PROXIMITY,
+  FAIR_IDLE_MOVE_INTERVAL, FAIR_IDLE_SHIFT,
 } from '../../constants';
 import { NavigationHelpers } from './NavigationHelpers';
 import { GatherHandler } from './GatherHandler';
@@ -255,20 +260,68 @@ export class CitizenAISystem {
 
       // ---- Priority-based decision tree ----
 
-      // 1. Exhausted during day -> go home and sleep
+      // 1. Festival — takes priority over normal needs (only starving/freezing override)
+      //    Moved above tired/night/hungry so citizens stay at the fair.
+      if (this.game.festivalSystem.isFestivalActive()) {
+        const fest = this.game.state.festival;
+        if (fest) {
+          const phase = fest.phase;
+          if (phase === 'main') {
+            // Set activity to the citizen's assigned fair activity
+            const fairAct = fest.fairActivities[id] || 'celebrating';
+            citizen.activity = fairAct;
+            if (this.isInFairArea(id, fest.townHallId)) {
+              movement.stuckTicks = 0;
+              // Activity-specific movement while at the fair
+              this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+              continue;
+            }
+            // Path to dispersed tile near town hall
+            const tile = this.game.festivalSystem.getDispersedFairTile(fest.townHallId);
+            if (tile) {
+              const result = this.game.pathfinder.findPath(
+                this.game.world.getComponent<any>(id, 'position')!.tileX,
+                this.game.world.getComponent<any>(id, 'position')!.tileY,
+                tile.x, tile.y,
+              );
+              if (result.found && result.path.length > 0) { movement.path = result.path; continue; }
+            }
+            if (this.nav.goToBuilding(id, fest.townHallId)) continue;
+          } else if (phase === 'gathering' || phase === 'flourish') {
+            citizen.activity = 'celebrating';
+            if (this.isInFairArea(id, fest.townHallId)) {
+              movement.stuckTicks = 0;
+              continue;
+            }
+            const tile2 = this.game.festivalSystem.getDispersedFairTile(fest.townHallId);
+            if (tile2) {
+              const result2 = this.game.pathfinder.findPath(
+                this.game.world.getComponent<any>(id, 'position')!.tileX,
+                this.game.world.getComponent<any>(id, 'position')!.tileY,
+                tile2.x, tile2.y,
+              );
+              if (result2.found && result2.path.length > 0) { movement.path = result2.path; continue; }
+            }
+            if (this.nav.goToBuilding(id, fest.townHallId)) continue;
+          }
+          // summary phase: game is paused, no AI runs
+        }
+      }
+
+      // 2. Exhausted during day -> go home and sleep
       if (needs.energy < TIRED_THRESHOLD) {
         logger.debug('AI', `${citizen.name} (${id}) exhausted — energy=${needs.energy.toFixed(1)}, going to sleep`);
         this.needs.goSleep(id, citizen);
         continue;
       }
 
-      // 2. Night time -> go home and sleep
+      // 3. Night time -> go home and sleep
       if (this.game.state.isNight) {
         this.needs.goSleep(id, citizen);
         continue;
       }
 
-      // 3. Hungry (meal time) -> eat a meal
+      // 3a. Hungry (meal time) -> eat a meal
       const mealThreshold = family?.isPregnant
         ? MEAL_FOOD_THRESHOLD + PREGNANT_MEAL_THRESHOLD_BOOST
         : MEAL_FOOD_THRESHOLD;
@@ -277,19 +330,6 @@ export class CitizenAISystem {
         logger.debug('AI', `${citizen.name} (${id}) hungry — food=${needs.food.toFixed(1)} < ${mealThreshold}, eating meal`);
         this.needs.eatMeal(id);
         continue;
-      }
-
-      // 3b. Festival — go to Town Hall gathering instead of working
-      if (this.game.festivalSystem.isFestivalActive()) {
-        const fest = this.game.state.festival;
-        if (fest) {
-          citizen.activity = 'celebrating';
-          if (this.nav.isNearBuilding(id, fest.townHallId)) {
-            movement.stuckTicks = 0;
-            continue;
-          }
-          if (this.nav.goToBuilding(id, fest.townHallId)) continue;
-        }
       }
 
       // 3c. Off-duty check — if outside work hours and not urgently needed, do leisure.
@@ -564,6 +604,156 @@ export class CitizenAISystem {
     }
   }
 
+  /** Check if a citizen is within the fair area around the town hall */
+  private isInFairArea(citizenId: EntityId, townHallId: EntityId): boolean {
+    const pos = this.game.world.getComponent<any>(citizenId, 'position');
+    const thPos = this.game.world.getComponent<any>(townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(townHallId, 'building');
+    if (!pos || !thPos || !thBld) return false;
+
+    const cx = thPos.tileX + Math.floor(thBld.width / 2);
+    const cy = thPos.tileY + Math.floor(thBld.height / 2);
+    const dx = Math.abs(pos.tileX - cx);
+    const dy = Math.abs(pos.tileY - cy);
+    return dx <= FAIR_GATHER_DISPERSE_RADIUS && dy <= FAIR_GATHER_DISPERSE_RADIUS;
+  }
+
+  // ── Fair activity movement categories ──
+  private static readonly ROAMING_ACTIVITIES = new Set<FairActivity>([
+    'dancing', 'bonfire_dancing', 'snowball_fight', 'games',
+  ]);
+  private static readonly RACING_ACTIVITIES = new Set<FairActivity>([
+    'foot_race',
+  ]);
+  private static readonly SOCIAL_ACTIVITIES = new Set<FairActivity>([
+    'storytelling', 'singing', 'feasting', 'drinking', 'arm_wrestling',
+  ]);
+  // All others (juggling, seed_trading, flower_crowns, pie_contest, apple_bobbing, ice_carving) are stationary
+
+  /**
+   * Give a citizen activity-appropriate movement while at the fair.
+   * Called each AI tick when the citizen is already in the fair area.
+   */
+  private doFairActivityMovement(
+    id: EntityId,
+    activity: FairActivity,
+    movement: any,
+    townHallId: EntityId,
+  ): void {
+    // If already walking somewhere, let them finish
+    if (movement.path && movement.path.length > 0) return;
+
+    const tick = this.game.state.tick;
+    const pos = this.game.world.getComponent<any>(id, 'position');
+    if (!pos) return;
+
+    // Use tick + citizen id for staggered movement (avoid everyone moving at once)
+    const phase = (tick + id * 7) | 0;
+
+    if (CitizenAISystem.ROAMING_ACTIVITIES.has(activity)) {
+      // Roaming: wander to a random nearby tile at regular intervals
+      if (phase % FAIR_ROAM_MOVE_INTERVAL !== 0) return;
+      const dx = Math.floor((Math.random() - 0.5) * 2 * FAIR_ROAM_RADIUS);
+      const dy = Math.floor((Math.random() - 0.5) * 2 * FAIR_ROAM_RADIUS);
+      this.fairMoveTo(id, pos.tileX + dx, pos.tileY + dy, movement, townHallId);
+    } else if (CitizenAISystem.RACING_ACTIVITIES.has(activity)) {
+      // Racing: run to a tile further away, more frequently
+      if (phase % FAIR_RACE_MOVE_INTERVAL !== 0) return;
+      // Pick a direction biased along one axis for a "course" feel
+      const horizontal = ((id * 3) % 2) === 0;
+      const sign = (Math.random() < 0.5) ? -1 : 1;
+      const dx = horizontal ? sign * FAIR_RACE_DISTANCE : Math.floor((Math.random() - 0.5) * 2);
+      const dy = horizontal ? Math.floor((Math.random() - 0.5) * 2) : sign * FAIR_RACE_DISTANCE;
+      this.fairMoveTo(id, pos.tileX + dx, pos.tileY + dy, movement, townHallId);
+    } else if (CitizenAISystem.SOCIAL_ACTIVITIES.has(activity)) {
+      // Social: cluster with nearby citizens doing the same activity
+      if (phase % FAIR_SOCIAL_MOVE_INTERVAL !== 0) return;
+      const partner = this.findNearbyFairPartner(id, activity, pos, FAIR_SOCIAL_PROXIMITY);
+      if (partner) {
+        const pPos = this.game.world.getComponent<any>(partner, 'position');
+        if (pPos) {
+          // Move toward partner (1 tile away so they don't overlap)
+          const pdx = pPos.tileX - pos.tileX;
+          const pdy = pPos.tileY - pos.tileY;
+          const targetX = pdx !== 0 ? pPos.tileX - Math.sign(pdx) : pPos.tileX;
+          const targetY = pdy !== 0 ? pPos.tileY - Math.sign(pdy) : pPos.tileY;
+          this.fairMoveTo(id, targetX, targetY, movement, townHallId);
+          return;
+        }
+      }
+      // No partner found — slight random drift
+      const dx = Math.floor((Math.random() - 0.5) * 2 * 2);
+      const dy = Math.floor((Math.random() - 0.5) * 2 * 2);
+      this.fairMoveTo(id, pos.tileX + dx, pos.tileY + dy, movement, townHallId);
+    } else {
+      // Stationary activities: slight positional shift at long intervals
+      if (phase % FAIR_IDLE_MOVE_INTERVAL !== 0) return;
+      const dx = Math.floor((Math.random() - 0.5) * 2 * FAIR_IDLE_SHIFT);
+      const dy = Math.floor((Math.random() - 0.5) * 2 * FAIR_IDLE_SHIFT);
+      if (dx === 0 && dy === 0) return;
+      this.fairMoveTo(id, pos.tileX + dx, pos.tileY + dy, movement, townHallId);
+    }
+  }
+
+  /** Move a citizen to a target tile, clamped within the fair area */
+  private fairMoveTo(id: EntityId, tx: number, ty: number, movement: any, townHallId: EntityId): void {
+    const thPos = this.game.world.getComponent<any>(townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(townHallId, 'building');
+    if (!thPos || !thBld) return;
+
+    const cx = thPos.tileX + Math.floor(thBld.width / 2);
+    const cy = thPos.tileY + Math.floor(thBld.height / 2);
+
+    // Clamp target within fair area
+    const clampedX = Math.max(cx - FAIR_GATHER_DISPERSE_RADIUS, Math.min(cx + FAIR_GATHER_DISPERSE_RADIUS, tx));
+    const clampedY = Math.max(cy - FAIR_GATHER_DISPERSE_RADIUS, Math.min(cy + FAIR_GATHER_DISPERSE_RADIUS, ty));
+
+    const tile = this.game.tileMap.get(clampedX, clampedY);
+    if (!tile || tile.blocksMovement) return;
+
+    const pos = this.game.world.getComponent<any>(id, 'position');
+    if (!pos) return;
+    if (pos.tileX === clampedX && pos.tileY === clampedY) return;
+
+    const result = this.game.pathfinder.findPath(pos.tileX, pos.tileY, clampedX, clampedY);
+    if (result.found && result.path.length > 0) {
+      movement.path = result.path;
+    }
+  }
+
+  /** Find a nearby citizen doing the same fair activity */
+  private findNearbyFairPartner(id: EntityId, activity: FairActivity, pos: any, radius: number): EntityId | null {
+    const fest = this.game.state.festival;
+    if (!fest) return null;
+
+    const citizens = this.game.world.getComponentStore<any>('citizen');
+    const positions = this.game.world.getComponentStore<any>('position');
+    if (!citizens || !positions) return null;
+
+    let bestId: EntityId | null = null;
+    let bestDist = Infinity;
+
+    for (const [otherId] of citizens) {
+      if (otherId === id) continue;
+      if (fest.fairActivities[otherId] !== activity) continue;
+
+      const oPos = positions.get(otherId);
+      if (!oPos) continue;
+
+      const dx = Math.abs(oPos.tileX - pos.tileX);
+      const dy = Math.abs(oPos.tileY - pos.tileY);
+      if (dx > radius || dy > radius) continue;
+
+      const dist = dx + dy;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestId = otherId;
+      }
+    }
+
+    return bestId;
+  }
+
   private handleChildAI(id: EntityId, citizen: any, needs: any, movement: any): void {
     // Sleeping
     if (citizen.isSleeping) return; // Already handled above
@@ -585,14 +775,27 @@ export class CitizenAISystem {
       return;
     }
 
-    // Festival — children attend too
+    // Festival — children attend too (phase-aware)
     if (this.game.festivalSystem.isFestivalActive()) {
       const fest = this.game.state.festival;
-      if (fest) {
-        citizen.activity = 'celebrating';
-        if (this.nav.isNearBuilding(id, fest.townHallId)) {
+      if (fest && fest.phase !== 'summary') {
+        const fairAct = fest.phase === 'main' ? (fest.fairActivities[id] || 'celebrating') : 'celebrating';
+        citizen.activity = fairAct;
+        if (this.isInFairArea(id, fest.townHallId)) {
           movement.stuckTicks = 0;
+          if (fest.phase === 'main') {
+            this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+          }
           return;
+        }
+        const tile = this.game.festivalSystem.getDispersedFairTile(fest.townHallId);
+        if (tile) {
+          const result = this.game.pathfinder.findPath(
+            this.game.world.getComponent<any>(id, 'position')!.tileX,
+            this.game.world.getComponent<any>(id, 'position')!.tileY,
+            tile.x, tile.y,
+          );
+          if (result.found && result.path.length > 0) { movement.path = result.path; return; }
         }
         if (this.nav.goToBuilding(id, fest.townHallId)) return;
       }

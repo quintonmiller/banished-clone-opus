@@ -85,17 +85,21 @@ export class NeedsSystem {
         movement.speedModifier = pregnancySpeedMult;
       }
 
+      // During a fair, freeze food/warmth/health — citizens are celebrating
+      // Energy still decays normally so they get tired by evening
+      const fairActive = this.game.festivalSystem.isFestivalActive();
+
       // --- Energy ---
       if (citizen.isSleeping) {
         // Recover energy while sleeping
         needs.energy = Math.min(100, needs.energy + ENERGY_RECOVERY_PER_TICK);
         // Food decays at reduced rate while sleeping (metabolism slows)
-        needs.food -= FOOD_DECAY_PER_TICK * SLEEP_FOOD_DECAY_MULT * pregnancyFoodMult;
+        if (!fairActive) needs.food -= FOOD_DECAY_PER_TICK * SLEEP_FOOD_DECAY_MULT * pregnancyFoodMult;
       } else {
         // Drain energy while awake
         needs.energy = Math.max(0, needs.energy - ENERGY_DECAY_PER_TICK * pregnancyEnergyMult);
         // Normal food decay
-        needs.food -= FOOD_DECAY_PER_TICK * pregnancyFoodMult;
+        if (!fairActive) needs.food -= FOOD_DECAY_PER_TICK * pregnancyFoodMult;
       }
       needs.food = Math.max(0, needs.food);
 
@@ -105,80 +109,84 @@ export class NeedsSystem {
       }
 
       // --- Warmth ---
-      let warmthDecay = WARMTH_DECAY_PER_TICK;
-      if (seasonData.temperature < 0) {
-        warmthDecay *= 1 + Math.abs(seasonData.temperature) / COLD_WARMTH_DIVISOR;
-      } else if (seasonData.temperature > WARM_WEATHER_TEMP) {
-        // Warm weather restores warmth
-        needs.warmth = Math.min(100, needs.warmth + WARM_WEATHER_RECOVERY);
-        warmthDecay = 0;
-      }
-
-      // Coat check: citizens without coats lose warmth faster
-      const hasCoat = this.game.getResource(ResourceType.COAT) > 0;
-      if (!hasCoat) {
-        warmthDecay *= NO_COAT_WARMTH_MULT;
-      } else {
-        this.game.removeResource(ResourceType.COAT, COAT_WEAR_PER_TICK);
-      }
-
-      // Sleeping indoors greatly reduces warmth loss
-      const isAtHome = family?.homeId != null && this.isNearHome(id, family.homeId);
-      if (isAtHome) {
-        const house = world.getComponent<any>(family.homeId, 'house');
-        if (house && house.warmthLevel > HOUSE_WARMTH_THRESHOLD) {
-          warmthDecay *= HOUSE_WARMTH_DECAY_MULT;
-          needs.warmth = Math.min(100, needs.warmth + HOUSE_WARMTH_RECOVERY);
+      if (!fairActive) {
+        let warmthDecay = WARMTH_DECAY_PER_TICK;
+        if (seasonData.temperature < 0) {
+          warmthDecay *= 1 + Math.abs(seasonData.temperature) / COLD_WARMTH_DIVISOR;
+        } else if (seasonData.temperature > WARM_WEATHER_TEMP) {
+          // Warm weather restores warmth
+          needs.warmth = Math.min(100, needs.warmth + WARM_WEATHER_RECOVERY);
+          warmthDecay = 0;
         }
-      }
 
-      // Citizen inside a warm public building also gets warmth protection
-      if (!isAtHome && citizen?.insideBuildingId) {
-        const heatedBld = world.getComponent<any>(citizen.insideBuildingId, 'building');
-        if (heatedBld && HEATED_BUILDING_TYPES.has(heatedBld.type)
-            && (heatedBld.warmthLevel ?? 0) > HEATED_BUILDING_WARMTH_THRESHOLD) {
-          warmthDecay *= HEATED_BUILDING_DECAY_MULT;
-          needs.warmth = Math.min(100, needs.warmth + HEATED_BUILDING_WARMTH_RECOVERY);
+        // Coat check: citizens without coats lose warmth faster
+        const hasCoat = this.game.getResource(ResourceType.COAT) > 0;
+        if (!hasCoat) {
+          warmthDecay *= NO_COAT_WARMTH_MULT;
+        } else {
+          this.game.removeResource(ResourceType.COAT, COAT_WEAR_PER_TICK);
         }
-      }
 
-      needs.warmth -= warmthDecay;
-      needs.warmth = Math.max(0, needs.warmth);
+        // Sleeping indoors greatly reduces warmth loss
+        const isAtHome = family?.homeId != null && this.isNearHome(id, family.homeId);
+        if (isAtHome) {
+          const house = world.getComponent<any>(family.homeId, 'house');
+          if (house && house.warmthLevel > HOUSE_WARMTH_THRESHOLD) {
+            warmthDecay *= HOUSE_WARMTH_DECAY_MULT;
+            needs.warmth = Math.min(100, needs.warmth + HOUSE_WARMTH_RECOVERY);
+          }
+        }
 
-      // Log when warmth first hits zero
-      if (needs.warmth <= 0 && needs.warmth + warmthDecay > 0) {
-        logger.warn('NEEDS', `${citizen.name} (${id}) warmth depleted — temp=${seasonData.temperature}, hasCoat=${this.game.getResource(ResourceType.COAT) > 0}, atHome=${isAtHome}`);
+        // Citizen inside a warm public building also gets warmth protection
+        if (!isAtHome && citizen?.insideBuildingId) {
+          const heatedBld = world.getComponent<any>(citizen.insideBuildingId, 'building');
+          if (heatedBld && HEATED_BUILDING_TYPES.has(heatedBld.type)
+              && (heatedBld.warmthLevel ?? 0) > HEATED_BUILDING_WARMTH_THRESHOLD) {
+            warmthDecay *= HEATED_BUILDING_DECAY_MULT;
+            needs.warmth = Math.min(100, needs.warmth + HEATED_BUILDING_WARMTH_RECOVERY);
+          }
+        }
+
+        needs.warmth -= warmthDecay;
+        needs.warmth = Math.max(0, needs.warmth);
+
+        // Log when warmth first hits zero
+        if (needs.warmth <= 0 && needs.warmth + warmthDecay > 0) {
+          logger.warn('NEEDS', `${citizen.name} (${id}) warmth depleted — temp=${seasonData.temperature}, hasCoat=${this.game.getResource(ResourceType.COAT) > 0}, atHome=${isAtHome}`);
+        }
       }
 
       // --- Health ---
-      if (needs.food <= 0) {
-        needs.health -= STARVATION_HEALTH_DAMAGE;
-        logger.debug('NEEDS', `${citizen.name} (${id}) starving: health ${needs.health.toFixed(1)} (-${STARVATION_HEALTH_DAMAGE})`);
-      }
-      if (needs.warmth <= 0 && seasonData.temperature < FREEZING_TEMP_THRESHOLD) {
-        needs.health -= FREEZING_HEALTH_DAMAGE;
-        logger.debug('NEEDS', `${citizen.name} (${id}) freezing: health ${needs.health.toFixed(1)} (-${FREEZING_HEALTH_DAMAGE})`);
-      }
-
-      // Natural health regeneration (when well-fed, warm, and rested)
-      if (needs.food > HEALTH_REGEN_FOOD_MIN && needs.warmth > HEALTH_REGEN_WARMTH_MIN && needs.energy > HEALTH_REGEN_ENERGY_MIN && needs.health < 100) {
-        needs.health += HEALTH_REGEN_RATE;
-      }
-
-      // Herbs boost health
-      if (needs.health < HERB_USE_HEALTH_THRESHOLD && this.game.getResource('herbs') > 0) {
-        if (this.game.rng.chance(HERB_USE_CHANCE)) {
-          this.game.removeResource('herbs', 1);
-          needs.health = Math.min(100, needs.health + HERB_HEALTH_RESTORE);
+      if (!fairActive) {
+        if (needs.food <= 0) {
+          needs.health -= STARVATION_HEALTH_DAMAGE;
+          logger.debug('NEEDS', `${citizen.name} (${id}) starving: health ${needs.health.toFixed(1)} (-${STARVATION_HEALTH_DAMAGE})`);
         }
-      }
+        if (needs.warmth <= 0 && seasonData.temperature < FREEZING_TEMP_THRESHOLD) {
+          needs.health -= FREEZING_HEALTH_DAMAGE;
+          logger.debug('NEEDS', `${citizen.name} (${id}) freezing: health ${needs.health.toFixed(1)} (-${FREEZING_HEALTH_DAMAGE})`);
+        }
 
-      // Old age health decay
-      if (citizen.age > OLD_AGE) {
-        needs.health -= HEALTH_DECAY_PER_TICK * (citizen.age - OLD_AGE) / OLD_AGE_HEALTH_DIVISOR;
-      }
+        // Natural health regeneration (when well-fed, warm, and rested)
+        if (needs.food > HEALTH_REGEN_FOOD_MIN && needs.warmth > HEALTH_REGEN_WARMTH_MIN && needs.energy > HEALTH_REGEN_ENERGY_MIN && needs.health < 100) {
+          needs.health += HEALTH_REGEN_RATE;
+        }
 
-      needs.health = Math.max(0, Math.min(100, needs.health));
+        // Herbs boost health
+        if (needs.health < HERB_USE_HEALTH_THRESHOLD && this.game.getResource('herbs') > 0) {
+          if (this.game.rng.chance(HERB_USE_CHANCE)) {
+            this.game.removeResource('herbs', 1);
+            needs.health = Math.min(100, needs.health + HERB_HEALTH_RESTORE);
+          }
+        }
+
+        // Old age health decay
+        if (citizen.age > OLD_AGE) {
+          needs.health -= HEALTH_DECAY_PER_TICK * (citizen.age - OLD_AGE) / OLD_AGE_HEALTH_DIVISOR;
+        }
+
+        needs.health = Math.max(0, Math.min(100, needs.health));
+      }
 
       // --- Happiness ---
       // Low energy makes citizens unhappy

@@ -103,10 +103,15 @@ export class LivestockSystem {
     // No production without a herder
     if (workerCount === 0) return;
 
+    // Fair knowledge bonus: animal husbandry (faster production timers)
+    let animalProdMult = 1;
+    const animalBonus = this.game.festivalSystem.getFairBonus('animalHusbandry');
+    if (animalBonus > 0) animalProdMult += animalBonus;
+
     // Production (skip if storage is full)
     const storageFull = this.game.isStorageFull();
     if (animalType === 'chicken') {
-      data.eggTimer += data.animalCount;
+      data.eggTimer += data.animalCount * animalProdMult;
       if (data.eggTimer >= CHICKEN_EGG_TICKS) {
         if (storageFull || this.game.isResourceLimitMet(ResourceType.EGGS)) {
           data.eggTimer = CHICKEN_EGG_TICKS;
@@ -115,7 +120,7 @@ export class LivestockSystem {
           this.game.addResourceRespectingLimit(ResourceType.EGGS, Math.ceil(data.animalCount * 0.7));
         }
       }
-      data.featherTimer += data.animalCount;
+      data.featherTimer += data.animalCount * animalProdMult;
       if (data.featherTimer >= CHICKEN_FEATHER_TICKS) {
         if (storageFull || this.game.isResourceLimitMet(ResourceType.FEATHERS)) {
           data.featherTimer = CHICKEN_FEATHER_TICKS;
@@ -125,7 +130,7 @@ export class LivestockSystem {
         }
       }
     } else {
-      data.milkTimer += data.animalCount;
+      data.milkTimer += data.animalCount * animalProdMult;
       if (data.milkTimer >= CATTLE_MILK_TICKS) {
         if (storageFull || this.game.isResourceLimitMet(ResourceType.MILK)) {
           data.milkTimer = CATTLE_MILK_TICKS;
@@ -134,7 +139,7 @@ export class LivestockSystem {
           this.game.addResourceRespectingLimit(ResourceType.MILK, data.animalCount);
         }
       }
-      data.woolTimer += data.animalCount;
+      data.woolTimer += data.animalCount * animalProdMult;
       if (data.woolTimer >= CATTLE_WOOL_TICKS) {
         if (storageFull || this.game.isResourceLimitMet(ResourceType.WOOL)) {
           data.woolTimer = CATTLE_WOOL_TICKS;

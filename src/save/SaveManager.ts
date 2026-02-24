@@ -68,6 +68,7 @@ export class SaveManager {
         isDawn: s.isDawn,
         nightAlpha: s.nightAlpha,
         resourceLimits: { ...s.resourceLimits },
+        fairBonuses: { ...s.fairBonuses },
       },
 
       globalResources: [...game.resources.globalResources],

@@ -154,7 +154,10 @@ export class DiseaseSystem {
         const pos = world.getComponent<any>(id, 'position')!;
         const d = distance(cx, cy, pos.tileX, pos.tileY);
         if (d <= HERBALIST_CURE_RADIUS) {
-          if (Math.random() < HERBALIST_CURE_CHANCE * DISEASE_TICK_INTERVAL) {
+          let cureRate = HERBALIST_CURE_CHANCE * DISEASE_TICK_INTERVAL;
+          const herbalBonus = this.game.festivalSystem.getFairBonus('herbalRemedy');
+          if (herbalBonus > 0) cureRate *= herbalBonus;
+          if (Math.random() < cureRate) {
             this.game.removeResource(ResourceType.HERBS, 1);
             this.cureCitizen(needs);
             const citizen = world.getComponent<any>(id, 'citizen');

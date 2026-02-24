@@ -2,6 +2,7 @@ import { Game } from './Game';
 import { StartScreen } from './ui/StartScreen';
 import { PauseMenu } from './ui/PauseMenu';
 import { SettingsPanel } from './ui/SettingsPanel';
+import { FairSummaryUI } from './ui/FairSummaryUI';
 import { SaveManager } from './save/SaveManager';
 
 const AUTO_SAVE_INTERVAL_MS = 60_000; // auto-save every 60 seconds
@@ -15,6 +16,7 @@ export class AppController {
   private startScreen: StartScreen | null = null;
   private pauseMenu: PauseMenu;
   private settingsPanel: SettingsPanel;
+  private fairSummaryUI: FairSummaryUI;
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
   private saveManager = new SaveManager();
 
@@ -22,8 +24,10 @@ export class AppController {
     this.canvas = canvas;
     this.pauseMenu = new PauseMenu();
     this.settingsPanel = new SettingsPanel();
+    this.fairSummaryUI = new FairSummaryUI();
     this.setupPauseMenuCallbacks();
     this.setupSettingsCallbacks();
+    this.setupFairSummaryCallbacks();
   }
 
   async start(): Promise<void> {
@@ -62,6 +66,7 @@ export class AppController {
 
     this.screen = 'START_SCREEN';
     this.pauseMenu.hide();
+    this.fairSummaryUI.hide();
     this.canvas.style.cursor = 'default';
 
     this.startScreen = new StartScreen(this.canvas, this.saveManager);
@@ -101,6 +106,9 @@ export class AppController {
     this.game.start();
     this.startAutoSave();
 
+    // If fair was in summary phase when saved, re-show the reward screen
+    this.game.festivalSystem.restoreSummaryIfNeeded();
+
     this.game.uiManager.addNotification('Game loaded!', '#88ff88');
 
     // Expose for debugging
@@ -110,14 +118,17 @@ export class AppController {
   private wireGameEvents(): void {
     if (!this.game) return;
 
-    // Overlay hook — draw pause menu or settings panel
+    // Overlay hook — draw pause menu, settings panel, or fair summary
     this.game.postRenderHook = (ctx) => {
+      this.fairSummaryUI.draw(ctx);
       this.pauseMenu.draw(ctx);
       this.settingsPanel.draw(ctx);
     };
 
     // Listen for Escape → pause menu request
     this.game.eventBus.on('request_pause_menu', () => {
+      // Don't open pause menu while fair summary is showing
+      if (this.fairSummaryUI.isVisible()) return;
       if (this.settingsPanel.isVisible()) {
         this.settingsPanel.hide();
         this.pauseMenu.show();
@@ -128,6 +139,17 @@ export class AppController {
       }
     });
 
+    // Listen for fair summary event
+    this.game.eventBus.on('fair_summary_show', (data: any) => {
+      this.fairSummaryUI.show(
+        data.stats,
+        data.rewardOptions,
+        data.type,
+        data.year,
+        data.prosperity,
+      );
+    });
+
     // Intercept mouse events for pause/settings (capture phase to intercept before InputManager)
     this.canvas.addEventListener('mousemove', this.onMouseMove);
     this.canvas.addEventListener('mousedown', this.onPauseMouseDown, true);
@@ -135,7 +157,10 @@ export class AppController {
   }
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (this.settingsPanel.isVisible()) {
+    if (this.fairSummaryUI.isVisible()) {
+      this.fairSummaryUI.handleMouseMove(e.clientX, e.clientY);
+      this.canvas.style.cursor = 'pointer';
+    } else if (this.settingsPanel.isVisible()) {
       this.settingsPanel.handleMouseMove(e.clientX, e.clientY);
       this.canvas.style.cursor = 'pointer';
     } else if (this.pauseMenu.isVisible()) {
@@ -145,7 +170,9 @@ export class AppController {
   };
 
   private onPauseMouseDown = (e: MouseEvent): void => {
-    if (this.settingsPanel.isVisible()) {
+    if (this.fairSummaryUI.isVisible()) {
+      e.stopImmediatePropagation();
+    } else if (this.settingsPanel.isVisible()) {
       e.stopImmediatePropagation();
       this.settingsPanel.handleMouseDown(e.clientX, e.clientY);
     }
@@ -166,7 +193,10 @@ export class AppController {
   };
 
   private onPauseClick = (e: MouseEvent): void => {
-    if (this.settingsPanel.isVisible()) {
+    if (this.fairSummaryUI.isVisible()) {
+      e.stopImmediatePropagation();
+      this.fairSummaryUI.handleClick(e.clientX, e.clientY);
+    } else if (this.settingsPanel.isVisible()) {
       e.stopImmediatePropagation();
       this.settingsPanel.handleMouseUp(e.clientX, e.clientY);
     } else if (this.pauseMenu.isVisible()) {
@@ -273,6 +303,16 @@ export class AppController {
       this.canvas.removeEventListener('mouseup', this.onPauseClick, true);
       this.pauseMenu.hide();
       this.showStartScreen();
+    };
+  }
+
+  private setupFairSummaryCallbacks(): void {
+    this.fairSummaryUI.onRewardChosen = (rewardId: string) => {
+      if (!this.game) return;
+      this.game.festivalSystem.applyReward(rewardId);
+      this.fairSummaryUI.hide();
+      this.game.festivalSystem.finalizeFair();
+      this.canvas.style.cursor = 'default';
     };
   }
 

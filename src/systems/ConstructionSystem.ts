@@ -278,6 +278,10 @@ export class ConstructionSystem {
       }
     }
 
+    // Fair knowledge bonus: masonry techniques
+    const masonryBonus = this.game.festivalSystem.getFairBonus('masonry');
+    if (masonryBonus > 0) workRate *= (1 + masonryBonus);
+
     return workRate;
   }
 

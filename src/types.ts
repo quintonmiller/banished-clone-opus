@@ -116,11 +116,53 @@ export interface GameState {
   assigningWorker: EntityId | null;
   // Festival state
   festival: FestivalState | null;
+  // Fair knowledge bonuses (timed buffs from fair rewards)
+  fairBonuses: Record<string, { value: number; expiryTick: number }>;
   // Global resource limits: keyed by building type or resource name, value = max stock
   resourceLimits: Record<string, number>;
 }
 
 export type FestivalType = 'planting_day' | 'midsummer' | 'harvest_festival' | 'frost_fair';
+export type FestivalPhase = 'main' | 'gathering' | 'flourish' | 'summary';
+
+export type FairActivity =
+  // Generic activities
+  | 'dancing' | 'arm_wrestling' | 'storytelling' | 'juggling'
+  | 'singing' | 'feasting' | 'games' | 'drinking'
+  // Spring-specific
+  | 'seed_trading' | 'flower_crowns'
+  // Summer-specific
+  | 'bonfire_dancing' | 'foot_race'
+  // Autumn-specific
+  | 'pie_contest' | 'apple_bobbing'
+  // Winter-specific
+  | 'ice_carving' | 'snowball_fight';
+
+export interface FairSeasonStats {
+  babiesBorn: number;
+  couplesMet: number;
+  couplesMarried: number;
+  newCitizens: number;
+  buildingsCompleted: number;
+  buildingsUpgraded: number;
+  citizensDied: number;
+  resourcesGathered: number;
+}
+
+export type FairRewardCategory = 'building' | 'traveler' | 'knowledge' | 'resources';
+
+export interface FairRewardDef {
+  id: string;
+  name: string;
+  description: string;
+  flavorText: string;
+  category: FairRewardCategory;
+  weight: number;
+  condition?: (game: any) => boolean;
+  applyFn: string;
+  festivalTypes?: FestivalType[];
+  icon: string;
+}
 
 export interface FestivalState {
   type: FestivalType;
@@ -128,6 +170,22 @@ export interface FestivalState {
   townHallId: EntityId;
   /** Active buff applied for the rest of the season after the festival */
   activeEffect: FestivalType | null;
+  /** Fair phase state machine */
+  phase: FestivalPhase;
+  /** Total ticks for the fair (used for phase timing) */
+  totalTicks: number;
+  /** Season stats snapshot at fair start (for delta display) */
+  seasonStatsAtStart: FairSeasonStats;
+  /** Entity IDs of temporary fair visitors */
+  fairVisitorIds: EntityId[];
+  /** Chosen reward ID (set when player picks) */
+  chosenReward: string | null;
+  /** 3 reward options presented to the player */
+  rewardOptions: string[];
+  /** Per-citizen activity assignments during the fair */
+  fairActivities: Record<number, FairActivity>;
+  /** Village prosperity score (0-1) at time of fair, used for reward scaling */
+  prosperity: number;
 }
 
 export interface EventLogEntry {

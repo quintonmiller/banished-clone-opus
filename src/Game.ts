@@ -27,7 +27,7 @@ import { LivestockSystem } from './systems/LivestockSystem';
 import { MilestoneSystem } from './systems/MilestoneSystem';
 import { UIManager } from './ui/UIManager';
 import { PlacementController } from './input/PlacementController';
-import { GameState, EntityId } from './types';
+import { GameState, EntityId, FestivalType } from './types';
 import { SaveData } from './save/SaveTypes';
 import { logger } from './utils/Logger';
 import { ResourceManager } from './ResourceManager';
@@ -41,6 +41,8 @@ import {
   PARTNER_PREFERENCE_OPPOSITE_SHARE, PARTNER_PREFERENCE_BOTH_SHARE, PARTNER_PREFERENCE_SAME_SHARE,
   MINE_VEIN_EXHAUSTED_THRESHOLD, BuildingType,
   DEMOLITION_WORK_MULT, DEMOLITION_RECLAIM_RATIO,
+  FESTIVAL_DURATION_TICKS, FESTIVAL_HAPPINESS_BOOST,
+  FAIR_CAMERA_ZOOM_DURATION_MS, FAIR_CAMERA_TARGET_ZOOM,
 } from './constants';
 import { BUILDING_DEFS } from './data/BuildingDefs';
 
@@ -148,6 +150,7 @@ export class Game {
       nightAlpha: 0,
       assigningWorker: null,
       festival: null,
+      fairBonuses: {},
       resourceLimits: {},
     };
 
@@ -276,6 +279,18 @@ export class Game {
     this.state.placingBuilding = null;
     this.state.assigningWorker = null;
     if (!this.state.resourceLimits) this.state.resourceLimits = {}; // backwards compat
+    if (!this.state.fairBonuses) this.state.fairBonuses = {}; // backwards compat v4
+    // Ensure festival state has new fair fields
+    if (this.state.festival) {
+      const f = this.state.festival as any;
+      if (!f.phase) f.phase = 'main';
+      if (!f.totalTicks) f.totalTicks = f.ticksRemaining || 0;
+      if (!f.seasonStatsAtStart) f.seasonStatsAtStart = { babiesBorn: 0, couplesMet: 0, couplesMarried: 0, newCitizens: 0, buildingsCompleted: 0, buildingsUpgraded: 0, citizensDied: 0, resourcesGathered: 0 };
+      if (!f.fairVisitorIds) f.fairVisitorIds = [];
+      if (f.chosenReward === undefined) f.chosenReward = null;
+      if (!f.rewardOptions) f.rewardOptions = [];
+      if (!f.fairActivities) f.fairActivities = {};
+    }
 
     // Restore RNG
     this.rng.setState(data.rngState);
@@ -395,9 +410,10 @@ export class Game {
     this.livestockSystem.update();
     this.milestoneSystem.update();
 
-    // Update population count
+    // Update population count (exclude temporary fair visitors)
     const citizens = this.world.getComponentStore('citizen');
-    this.state.population = citizens ? citizens.size : 0;
+    const fairVisitors = this.world.getComponentStore('fairVisitor');
+    this.state.population = citizens ? citizens.size - (fairVisitors ? fairVisitors.size : 0) : 0;
 
     // Periodic game state summary (every 600 ticks = 1 day)
     if (this.state.tick % 600 === 0) {
@@ -420,8 +436,15 @@ export class Game {
       }
     }
 
-    // Update camera
-    this.cameraController.update(1 / 60);
+    // Update camera (skip user input during smooth animation or fair summary overlay)
+    const animating = this.camera.updateAnimation();
+    const fairSummaryActive = this.state.festival?.phase === 'summary' && this.state.festival.ticksRemaining > 0;
+    if (!animating && !fairSummaryActive) {
+      this.cameraController.update(1 / 60);
+    }
+    if (fairSummaryActive) {
+      this.input.consumeScroll();
+    }
 
     // Handle keyboard shortcuts
     this.handleKeyboardShortcuts();
@@ -503,6 +526,10 @@ export class Game {
     if (this.input.isKeyDown('f4')) {
       logger.cycleLevel();
       this.input.keys.delete('f4');
+    }
+    if (this.input.isKeyDown('f6')) {
+      this.debugTriggerFair();
+      this.input.keys.delete('f6');
     }
     if (this.input.isKeyDown('l')) {
       this.uiManager.toggleEventLog();
@@ -1111,5 +1138,164 @@ export class Game {
     });
 
     return true;
+  }
+
+  // ── Debug / Testing ─────────────────────────────────────────
+
+  /**
+   * Instantly trigger a fair for testing.
+   * Spawns a Town Hall near citizens if one doesn't exist.
+   * Cycles through fair types: planting → midsummer → harvest → frost.
+   *
+   * Hotkey: F6
+   * Console: game.debugTriggerFair()  or  game.debugTriggerFair('frost_fair')
+   */
+  debugTriggerFair(type?: FestivalType): void {
+    // If a fair is already active, skip
+    if (this.festivalSystem.isFestivalActive()) {
+      this.uiManager.addNotification('Fair already active!', '#ff8844');
+      return;
+    }
+
+    // Find or create a Town Hall
+    let townHallId: number | null = null;
+    const buildings = this.world.getComponentStore<any>('building');
+    if (buildings) {
+      for (const [id, bld] of buildings) {
+        if (bld.type === BuildingType.TOWN_HALL && bld.completed) {
+          townHallId = id;
+          break;
+        }
+      }
+    }
+
+    if (townHallId === null) {
+      // Spawn a town hall near the average citizen position
+      const positions = this.world.getComponentStore<any>('position');
+      const citizens = this.world.getComponentStore<any>('citizen');
+      let cx = 100, cy = 100;
+      if (positions && citizens && citizens.size > 0) {
+        let sx = 0, sy = 0, n = 0;
+        for (const [id] of citizens) {
+          const pos = positions.get(id);
+          if (pos) { sx += pos.tileX; sy += pos.tileY; n++; }
+        }
+        if (n > 0) { cx = Math.round(sx / n) + 3; cy = Math.round(sy / n) + 3; }
+      }
+
+      // Find buildable spot (5x5 town hall)
+      const def = BUILDING_DEFS[BuildingType.TOWN_HALL];
+      if (!def) return;
+      let px = cx, py = cy;
+      let placed = false;
+      for (let r = 0; r < 12 && !placed; r++) {
+        for (let dx = -r; dx <= r && !placed; dx++) {
+          for (let dy = -r; dy <= r && !placed; dy++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            if (this.tileMap.isAreaBuildable(cx + dx, cy + dy, def.width, def.height)) {
+              px = cx + dx;
+              py = cy + dy;
+              placed = true;
+            }
+          }
+        }
+      }
+      if (!placed) {
+        this.uiManager.addNotification('Could not find space for Town Hall!', '#ff4444');
+        return;
+      }
+
+      townHallId = this.world.createEntity();
+      this.world.addComponent(townHallId, 'position', {
+        tileX: px, tileY: py,
+        pixelX: px * TILE_SIZE, pixelY: py * TILE_SIZE,
+      });
+      this.world.addComponent(townHallId, 'building', {
+        type: def.type, name: def.name, category: def.category,
+        completed: true, constructionProgress: 1, constructionWork: def.constructionWork,
+        width: def.width, height: def.height,
+        maxWorkers: def.maxWorkers, workRadius: def.workRadius,
+        assignedWorkers: [], costLog: 0, costStone: 0, costIron: 0,
+        materialsDelivered: true, isStorage: def.isStorage,
+        storageCapacity: def.storageCapacity, residents: def.residents,
+        durability: 100, rotation: 0, doorDef: def.doorDef,
+      });
+      this.world.addComponent(townHallId, 'renderable', {
+        sprite: null, layer: 5, animFrame: 0, visible: true,
+      });
+      this.world.addComponent(townHallId, 'producer', {
+        timer: 0, active: false, workerCount: 0,
+      });
+      this.tileMap.markOccupied(px, py, def.width, def.height, townHallId, def.blocksMovement !== false);
+      this.pathfinder.clearCache();
+      this.renderSystem.invalidateTerrain();
+      this.uiManager.addNotification('Debug: spawned Town Hall', '#88ff88');
+    }
+
+    // Pick fair type — cycle through seasons or use specified
+    const fairTypes: FestivalType[] = ['planting_day', 'midsummer', 'harvest_festival', 'frost_fair'];
+    const fairType = type ?? fairTypes[this.state.year % 4];
+
+    // Force-start the festival via the system's internal method
+    // We directly set the state since startFestival is private
+    const fest = this.state.festival;
+    if (fest && fest.ticksRemaining <= 0) {
+      // Clear lingering state from previous fair
+      this.state.festival = null;
+    }
+
+    // Emit a synthetic festival start by manipulating state
+    this.eventBus.emit('debug_trigger_fair', { type: fairType, townHallId });
+
+    // Directly construct the festival state (bypassing season check).
+
+    const prosperity = this.festivalSystem.computeVillageProsperity();
+
+    this.state.festival = {
+      type: fairType,
+      ticksRemaining: FESTIVAL_DURATION_TICKS,
+      townHallId,
+      activeEffect: null,
+      phase: 'main' as const,
+      totalTicks: FESTIVAL_DURATION_TICKS,
+      seasonStatsAtStart: { ...this.festivalSystem.seasonStats },
+      fairVisitorIds: [],
+      chosenReward: null,
+      rewardOptions: [],
+      fairActivities: {},
+      prosperity,
+    };
+
+    // Initial happiness boost
+    const needsStore = this.world.getComponentStore<any>('needs');
+    if (needsStore) {
+      for (const [, needs] of needsStore) {
+        needs.happiness = Math.min(100, needs.happiness + FESTIVAL_HAPPINESS_BOOST);
+      }
+    }
+
+    // Force speed to 1x
+    this.state.speed = 1;
+    this.state.paused = false;
+    this.loop.setSpeed(1);
+
+    // Camera zoom to town hall
+    const thPos = this.world.getComponent<any>(townHallId, 'position');
+    const thBld = this.world.getComponent<any>(townHallId, 'building');
+    if (thPos && thBld) {
+      const cx = thPos.tileX + Math.floor(thBld.width / 2);
+      const cy = thPos.tileY + Math.floor(thBld.height / 2);
+      this.camera.animateTo(cx, cy, FAIR_CAMERA_TARGET_ZOOM, FAIR_CAMERA_ZOOM_DURATION_MS);
+    }
+
+    // Generate rewards and assign activities (use the system's public methods where possible)
+    // We need to access private methods, so let's call them via the system cast
+    const sys = this.festivalSystem as any;
+    sys.spawnFairVisitors(this.state.festival);
+    sys.assignFairActivities(this.state.festival);
+    this.state.festival.rewardOptions = sys.generateRewardOptions(this.state.festival);
+
+    this.eventBus.emit('festival_started', { type: fairType });
+    this.uiManager.addNotification(`Debug: triggered ${fairType.replace(/_/g, ' ')}!`, '#ffdd44');
   }
 }

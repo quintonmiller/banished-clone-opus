@@ -1,6 +1,6 @@
 import { EventLogEntry } from '../types';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'exiled_game_save';
 
 // IndexedDB constants
@@ -46,6 +46,7 @@ export interface SaveData {
     isDawn: boolean;
     nightAlpha: number;
     resourceLimits: Record<string, number>;
+    fairBonuses: Record<string, { value: number; expiryTick: number }>;
   };
 
   globalResources: [string, number][];
@@ -75,7 +76,7 @@ export interface SaveData {
     population: { tickCounter: number };
     storage: { tickCounter: number };
     particle: { tickCounter: number };
-    festival: { celebrated: number[] };
+    festival: { celebrated: number[]; seasonStats?: any };
     livestock?: { livestock: [number, any][] };
     milestone?: { achieved: string[]; bonuses: [string, number][]; lastNarrativeTick: number; deathsBeforeFirstWinter: number; passedFirstWinter: boolean };
   };
