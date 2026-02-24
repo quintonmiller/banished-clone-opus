@@ -290,6 +290,8 @@ export class Game {
       if (f.chosenReward === undefined) f.chosenReward = null;
       if (!f.rewardOptions) f.rewardOptions = [];
       if (!f.fairActivities) f.fairActivities = {};
+      if (!f.fairGroups) f.fairGroups = [];
+      if (f.fairGroupNextId === undefined) f.fairGroupNextId = 0;
     }
 
     // Restore RNG
@@ -1264,6 +1266,8 @@ export class Game {
       rewardOptions: [],
       fairActivities: {},
       prosperity,
+      fairGroups: [],
+      fairGroupNextId: 0,
     };
 
     // Initial happiness boost
@@ -1293,7 +1297,7 @@ export class Game {
     const sys = this.festivalSystem as any;
     sys.spawnFairVisitors(this.state.festival);
     sys.assignFairActivities(this.state.festival);
-    this.state.festival.rewardOptions = sys.generateRewardOptions(this.state.festival);
+    this.state.festival!.rewardOptions = sys.generateRewardOptions(this.state.festival);
 
     this.eventBus.emit('festival_started', { type: fairType });
     this.uiManager.addNotification(`Debug: triggered ${fairType.replace(/_/g, ' ')}!`, '#ffdd44');

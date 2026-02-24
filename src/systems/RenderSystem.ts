@@ -687,6 +687,12 @@ export class RenderSystem {
     // Fair activities — winter
     ice_carving:     { symbol: '\u2744', color: '#aaddff' },
     snowball_fight:  { symbol: '\u2746', color: '#cceeFF' },
+    // Fair group activities
+    group_race:      { symbol: 'R',  color: '#22ddff' },
+    group_dance:     { symbol: 'D',  color: '#ff66ff' },
+    scavenger_hunt:  { symbol: '?',  color: '#66ff44' },
+    tug_of_war:      { symbol: 'T',  color: '#ff8833' },
+    parade:          { symbol: 'P',  color: '#ffee44' },
   };
 
   private drawCitizen(

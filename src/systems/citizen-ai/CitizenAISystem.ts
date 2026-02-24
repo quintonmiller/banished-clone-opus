@@ -1,5 +1,5 @@
 import type { Game } from '../../Game';
-import { EntityId, FairActivity } from '../../types';
+import { EntityId, FairActivity, FairGroupActivity, FestivalState } from '../../types';
 import { logger } from '../../utils/Logger';
 import {
   Profession, BuildingType, PersonalityTrait,
@@ -272,8 +272,13 @@ export class CitizenAISystem {
             citizen.activity = fairAct;
             if (this.isInFairArea(id, fest.townHallId)) {
               movement.stuckTicks = 0;
-              // Activity-specific movement while at the fair
-              this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+              // Check for group membership first
+              const group = this.findCitizenGroup(id, fest);
+              if (group) {
+                this.doGroupActivityMovement(id, group, movement, fest.townHallId);
+              } else {
+                this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+              }
               continue;
             }
             // Path to dispersed tile near town hall
@@ -754,6 +759,150 @@ export class CitizenAISystem {
     return bestId;
   }
 
+  // ── Group activity movement ───────────────────────────────────
+
+  /** Find the group a citizen belongs to (if any) */
+  private findCitizenGroup(id: EntityId, fest: FestivalState): FairGroupActivity | null {
+    if (!fest.fairGroups) return null;
+    for (const g of fest.fairGroups) {
+      if (g.phase === 'finished') continue;
+      if (g.memberIds.includes(id)) return g;
+    }
+    return null;
+  }
+
+  /** Dispatch group activity movement to per-type handler */
+  private doGroupActivityMovement(
+    id: EntityId,
+    group: FairGroupActivity,
+    movement: any,
+    townHallId: EntityId,
+  ): void {
+    // If already walking somewhere, let them finish
+    if (movement.path && movement.path.length > 0) return;
+
+    switch (group.type) {
+      case 'race': this.doRaceMovement(id, group, movement, townHallId); break;
+      case 'group_dance': this.doDanceMovement(id, group, movement, townHallId); break;
+      case 'feast_circle': this.doFeastCircleMovement(id, group, movement, townHallId); break;
+      case 'scavenger_hunt': this.doScavengerMovement(id, group, movement, townHallId); break;
+      case 'tug_of_war': this.doTugOfWarMovement(id, group, movement, townHallId); break;
+      case 'parade': this.doParadeMovement(id, group, movement, townHallId); break;
+    }
+  }
+
+  /** Race: assembling = go to start line; active = sprint to finish line */
+  private doRaceMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    const wpIdx = group.waypointIndex[id];
+    if (wpIdx === undefined) return;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+    this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+  }
+
+  /** Dance: assembling = go to circle position; active = rotate to next waypoint */
+  private doDanceMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    const wpIdx = group.waypointIndex[id];
+    if (wpIdx === undefined) return;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+
+    const pos = this.game.world.getComponent<any>(id, 'position');
+    if (!pos) return;
+
+    if (group.phase === 'active') {
+      // If near current waypoint, advance to next
+      if (Math.abs(pos.tileX - wp.x) <= 1 && Math.abs(pos.tileY - wp.y) <= 1) {
+        group.waypointIndex[id] = (wpIdx + 1) % group.waypoints.length;
+        const nextWp = group.waypoints[group.waypointIndex[id]];
+        this.fairMoveTo(id, nextWp.x, nextWp.y, movement, townHallId);
+        return;
+      }
+    }
+    this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+  }
+
+  /** Feast circle: assembling = gather at cluster; active = tiny random shifts */
+  private doFeastCircleMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    const wpIdx = group.waypointIndex[id];
+    if (wpIdx === undefined) return;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+
+    if (group.phase === 'active') {
+      // Small random shift every ~20 ticks
+      if (group.phaseTick % 20 !== 0) return;
+      const dx = Math.floor((Math.random() - 0.5) * 2);
+      const dy = Math.floor((Math.random() - 0.5) * 2);
+      this.fairMoveTo(id, wp.x + dx, wp.y + dy, movement, townHallId);
+    } else {
+      this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+    }
+  }
+
+  /** Scavenger hunt: chase random waypoints rapidly */
+  private doScavengerMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    if (group.waypoints.length === 0) return;
+
+    const pos = this.game.world.getComponent<any>(id, 'position');
+    if (!pos) return;
+
+    const wpIdx = group.waypointIndex[id] ?? 0;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+
+    // If near current waypoint, pick a different random one
+    if (Math.abs(pos.tileX - wp.x) <= 1 && Math.abs(pos.tileY - wp.y) <= 1) {
+      let next = Math.floor(Math.random() * group.waypoints.length);
+      if (next === wpIdx && group.waypoints.length > 1) {
+        next = (next + 1) % group.waypoints.length;
+      }
+      group.waypointIndex[id] = next;
+      const nextWp = group.waypoints[next];
+      this.fairMoveTo(id, nextWp.x, nextWp.y, movement, townHallId);
+    } else {
+      this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+    }
+  }
+
+  /** Tug of war: assembling = go to team position; active = oscillate ±1 tile */
+  private doTugOfWarMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    const wpIdx = group.waypointIndex[id];
+    if (wpIdx === undefined) return;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+
+    if (group.phase === 'active') {
+      // Oscillate every 15 ticks — synchronized via group.phaseTick
+      if (group.phaseTick % 15 !== 0) return;
+      const pull = (group.phaseTick % 30 < 15) ? -1 : 1;
+      this.fairMoveTo(id, wp.x + pull, wp.y, movement, townHallId);
+    } else {
+      this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+    }
+  }
+
+  /** Parade: assembling = gather near first waypoint; active = march through waypoints */
+  private doParadeMovement(id: EntityId, group: FairGroupActivity, movement: any, townHallId: EntityId): void {
+    const wpIdx = group.waypointIndex[id] ?? 0;
+    const wp = group.waypoints[wpIdx];
+    if (!wp) return;
+
+    const pos = this.game.world.getComponent<any>(id, 'position');
+    if (!pos) return;
+
+    if (group.phase === 'active') {
+      // If near current waypoint, advance to next (loop)
+      if (Math.abs(pos.tileX - wp.x) <= 1 && Math.abs(pos.tileY - wp.y) <= 1) {
+        group.waypointIndex[id] = (wpIdx + 1) % group.waypoints.length;
+        const nextWp = group.waypoints[group.waypointIndex[id]];
+        this.fairMoveTo(id, nextWp.x, nextWp.y, movement, townHallId);
+        return;
+      }
+    }
+    this.fairMoveTo(id, wp.x, wp.y, movement, townHallId);
+  }
+
   private handleChildAI(id: EntityId, citizen: any, needs: any, movement: any): void {
     // Sleeping
     if (citizen.isSleeping) return; // Already handled above
@@ -784,7 +933,12 @@ export class CitizenAISystem {
         if (this.isInFairArea(id, fest.townHallId)) {
           movement.stuckTicks = 0;
           if (fest.phase === 'main') {
-            this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+            const group = this.findCitizenGroup(id, fest);
+            if (group) {
+              this.doGroupActivityMovement(id, group, movement, fest.townHallId);
+            } else {
+              this.doFairActivityMovement(id, fairAct as FairActivity, movement, fest.townHallId);
+            }
           }
           return;
         }

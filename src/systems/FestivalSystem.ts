@@ -1,5 +1,5 @@
 import type { Game } from '../Game';
-import { FestivalType, FestivalPhase, FairActivity, FairSeasonStats, EntityId } from '../types';
+import { FestivalType, FestivalPhase, FairActivity, FairSeasonStats, FairGroupActivity, FairGroupType, EntityId } from '../types';
 import { FAIR_REWARD_DEFS, FAIR_REWARD_MAP, KNOWLEDGE_BONUS_CONFIG } from '../data/FairRewardDefs';
 import {
   BuildingType, Season, ResourceType, Profession, SkillType,
@@ -14,6 +14,11 @@ import {
   FAIR_HAPPINESS_PER_ACTIVITY_TICK, PersonalityTrait, CITIZEN_SPEED,
   IMMIGRATION_FOOD_PER_PERSON_PER_MONTH, IMMIGRATION_FOOD_MONTHS_TARGET,
   IMMIGRATION_HOUSING_TARGET_FREE_SLOTS, IMMIGRATION_OPEN_JOBS_TARGET,
+  FAIR_GROUP_FORMATION_INTERVAL, FAIR_GROUP_MIN_SIZE, FAIR_GROUP_MAX_SIZE,
+  FAIR_GROUP_MAX_CONCURRENT, FAIR_GROUP_ASSEMBLE_TIMEOUT,
+  FAIR_RACE_DURATION, FAIR_DANCE_DURATION, FAIR_SCAVENGER_DURATION,
+  FAIR_TUG_DURATION, FAIR_PARADE_DURATION, FAIR_FEAST_DURATION,
+  FAIR_DANCE_CIRCLE_RADIUS, FAIR_SCAVENGER_WAYPOINT_COUNT,
 } from '../constants';
 
 /** Generic + seasonal fair activity pools */
@@ -133,6 +138,8 @@ export class FestivalSystem {
       rewardOptions: [],
       fairActivities: {},
       prosperity,
+      fairGroups: [],
+      fairGroupNextId: 0,
     };
 
     // Max out survival needs and boost happiness for the fair
@@ -187,8 +194,9 @@ export class FestivalSystem {
       // ── Main phase ──
       if (fest.phase !== 'main') fest.phase = 'main';
       this.applyFestivalHappiness();
+      this.updateFairGroups();
 
-      // Periodic activity reassignment
+      // Periodic activity reassignment (skip citizens in active groups)
       if (elapsed % FAIR_ACTIVITY_CHANGE_INTERVAL === 0 && elapsed > 0) {
         this.assignFairActivities(fest);
       }
@@ -289,10 +297,20 @@ export class FestivalSystem {
     return { x: cx + 1, y: cy + 1 };
   }
 
-  /** Assign fair activities to all citizens */
-  private assignFairActivities(fest: { type: FestivalType; fairActivities: Record<number, FairActivity> }): void {
+  /** Assign fair activities to all citizens (skips citizens in active groups) */
+  private assignFairActivities(fest: { type: FestivalType; fairActivities: Record<number, FairActivity>; fairGroups?: FairGroupActivity[] }): void {
     const citizens = this.game.world.getComponentStore<any>('citizen');
     if (!citizens) return;
+
+    // Build set of citizens currently in non-finished groups
+    const grouped = new Set<EntityId>();
+    if (fest.fairGroups) {
+      for (const g of fest.fairGroups) {
+        if (g.phase !== 'finished') {
+          for (const mid of g.memberIds) grouped.add(mid);
+        }
+      }
+    }
 
     const seasonal = SEASONAL_ACTIVITIES[fest.type] || [];
     const pool: { activity: FairActivity; weight: number }[] = [];
@@ -307,6 +325,7 @@ export class FestivalSystem {
     const totalWeight = pool.reduce((s, p) => s + p.weight, 0);
 
     for (const [id] of citizens) {
+      if (grouped.has(id)) continue; // skip grouped citizens
       let roll = Math.random() * totalWeight;
       for (const p of pool) {
         roll -= p.weight;
@@ -316,6 +335,354 @@ export class FestivalSystem {
         }
       }
     }
+  }
+
+  // ── Group fair activities ─────────────────────────────────────
+
+  private static readonly GROUP_TYPE_DURATIONS: Record<FairGroupType, number> = {
+    race: FAIR_RACE_DURATION,
+    group_dance: FAIR_DANCE_DURATION,
+    feast_circle: FAIR_FEAST_DURATION,
+    tug_of_war: FAIR_TUG_DURATION,
+    parade: FAIR_PARADE_DURATION,
+    scavenger_hunt: FAIR_SCAVENGER_DURATION,
+  };
+
+  private static readonly GROUP_TYPE_ACTIVITY: Record<FairGroupType, FairActivity> = {
+    race: 'group_race',
+    group_dance: 'group_dance',
+    feast_circle: 'feasting',
+    tug_of_war: 'tug_of_war',
+    parade: 'parade',
+    scavenger_hunt: 'scavenger_hunt',
+  };
+
+  private static readonly GROUP_TYPES: FairGroupType[] = [
+    'race', 'group_dance', 'feast_circle', 'tug_of_war', 'parade', 'scavenger_hunt',
+  ];
+
+  /** Update all active group activities — called every tick during main phase */
+  private updateFairGroups(): void {
+    const fest = this.game.state.festival;
+    if (!fest) return;
+    if (!fest.fairGroups) fest.fairGroups = [];
+
+    const tick = this.game.state.tick;
+
+    // Update existing groups
+    for (const group of fest.fairGroups) {
+      if (group.phase === 'finished') continue;
+      group.phaseTick++;
+
+      if (group.phase === 'assembling') {
+        if (group.phaseTick >= FAIR_GROUP_ASSEMBLE_TIMEOUT || this.areGroupMembersAssembled(group)) {
+          this.activateGroup(group);
+        }
+      } else if (group.phase === 'active') {
+        if (group.phaseTick >= group.durationTicks) {
+          group.phase = 'finished';
+        }
+      }
+    }
+
+    // Clean up finished groups
+    const before = fest.fairGroups.length;
+    for (let i = fest.fairGroups.length - 1; i >= 0; i--) {
+      if (fest.fairGroups[i].phase === 'finished') {
+        this.dissolveGroup(fest.fairGroups[i], fest);
+        fest.fairGroups.splice(i, 1);
+      }
+    }
+
+    // Periodically form new groups
+    const activeCount = fest.fairGroups.length;
+    const elapsed = fest.totalTicks - fest.ticksRemaining;
+    if (activeCount < FAIR_GROUP_MAX_CONCURRENT && elapsed % FAIR_GROUP_FORMATION_INTERVAL === 0) {
+      this.tryFormGroup(fest);
+    }
+  }
+
+  /** Try to form a new group activity */
+  private tryFormGroup(fest: NonNullable<typeof this.game.state.festival>): void {
+    const available = this.getAvailableFairCitizens(fest);
+    if (available.length < FAIR_GROUP_MIN_SIZE) return;
+
+    // Pick a random group type
+    const type = FestivalSystem.GROUP_TYPES[Math.floor(Math.random() * FestivalSystem.GROUP_TYPES.length)];
+
+    // Scavenger hunts prefer children
+    let candidates: EntityId[];
+    if (type === 'scavenger_hunt') {
+      const children = available.filter(id => {
+        const cit = this.game.world.getComponent<any>(id, 'citizen');
+        return cit?.isChild;
+      });
+      candidates = children.length >= FAIR_GROUP_MIN_SIZE ? children : available;
+    } else {
+      // Other activities use adults preferentially
+      const adults = available.filter(id => {
+        const cit = this.game.world.getComponent<any>(id, 'citizen');
+        return cit && !cit.isChild;
+      });
+      candidates = adults.length >= FAIR_GROUP_MIN_SIZE ? adults : available;
+    }
+
+    if (candidates.length < FAIR_GROUP_MIN_SIZE) return;
+
+    // Select members (random subset, capped)
+    const count = Math.min(
+      FAIR_GROUP_MAX_SIZE,
+      FAIR_GROUP_MIN_SIZE + Math.floor(Math.random() * (candidates.length - FAIR_GROUP_MIN_SIZE + 1)),
+    );
+    // Shuffle and take first N
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    const members = candidates.slice(0, count);
+
+    // Generate waypoints
+    const waypoints = this.generateGroupWaypoints(type, fest.townHallId, members.length);
+    if (!waypoints || waypoints.length === 0) return;
+
+    // Build initial waypoint index (each member → their start waypoint)
+    const waypointIndex: Record<number, number> = {};
+    for (let i = 0; i < members.length; i++) {
+      waypointIndex[members[i]] = i % waypoints.length;
+    }
+
+    const group: FairGroupActivity = {
+      id: fest.fairGroupNextId++,
+      type,
+      memberIds: members,
+      phase: 'assembling',
+      phaseTick: 0,
+      waypoints,
+      waypointIndex,
+      startTick: this.game.state.tick,
+      durationTicks: FestivalSystem.GROUP_TYPE_DURATIONS[type],
+    };
+
+    fest.fairGroups.push(group);
+
+    // Set activity labels for group members
+    const actLabel = FestivalSystem.GROUP_TYPE_ACTIVITY[type];
+    for (const mid of members) {
+      fest.fairActivities[mid] = actLabel;
+    }
+  }
+
+  /** Generate spatial waypoints for a group activity type */
+  private generateGroupWaypoints(
+    type: FairGroupType,
+    townHallId: EntityId,
+    memberCount: number,
+  ): { x: number; y: number }[] {
+    const thPos = this.game.world.getComponent<any>(townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(townHallId, 'building');
+    if (!thPos || !thBld) return [];
+
+    const cx = thPos.tileX + Math.floor(thBld.width / 2);
+    const cy = thPos.tileY + Math.floor(thBld.height / 2);
+    const results: { x: number; y: number }[] = [];
+
+    switch (type) {
+      case 'race': {
+        // Start line + finish line, ~10 tiles apart
+        const horizontal = Math.random() < 0.5;
+        const startOffset = -5;
+        const finishOffset = 5;
+        // First memberCount waypoints = start positions, next memberCount = finish positions
+        for (let i = 0; i < memberCount; i++) {
+          const spread = i - Math.floor(memberCount / 2);
+          if (horizontal) {
+            results.push(this.validateWaypoint(cx + startOffset, cy + spread, cx, cy));
+          } else {
+            results.push(this.validateWaypoint(cx + spread, cy + startOffset, cx, cy));
+          }
+        }
+        for (let i = 0; i < memberCount; i++) {
+          const spread = i - Math.floor(memberCount / 2);
+          if (horizontal) {
+            results.push(this.validateWaypoint(cx + finishOffset, cy + spread, cx, cy));
+          } else {
+            results.push(this.validateWaypoint(cx + spread, cy + finishOffset, cx, cy));
+          }
+        }
+        break;
+      }
+
+      case 'group_dance': {
+        // Circle of 8 evenly-spaced points
+        const r = FAIR_DANCE_CIRCLE_RADIUS;
+        const pointCount = 8;
+        for (let i = 0; i < pointCount; i++) {
+          const angle = (i / pointCount) * Math.PI * 2;
+          const dx = Math.round(Math.cos(angle) * r);
+          const dy = Math.round(Math.sin(angle) * r);
+          results.push(this.validateWaypoint(cx + dx, cy + dy, cx, cy));
+        }
+        break;
+      }
+
+      case 'feast_circle': {
+        // Small cluster of positions around a center point
+        const offsets = [
+          { x: -1, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 },
+          { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 },
+        ];
+        // Pick a spot offset from TH center
+        const fx = cx + Math.floor((Math.random() - 0.5) * 6);
+        const fy = cy + Math.floor((Math.random() - 0.5) * 6);
+        for (let i = 0; i < Math.min(memberCount, offsets.length); i++) {
+          results.push(this.validateWaypoint(fx + offsets[i].x, fy + offsets[i].y, cx, cy));
+        }
+        break;
+      }
+
+      case 'tug_of_war': {
+        // Two teams facing each other, 4 tiles apart
+        const teamSize = Math.ceil(memberCount / 2);
+        const leftX = cx - 2;
+        const rightX = cx + 2;
+        for (let i = 0; i < teamSize; i++) {
+          results.push(this.validateWaypoint(leftX, cy - Math.floor(teamSize / 2) + i, cx, cy));
+        }
+        for (let i = 0; i < memberCount - teamSize; i++) {
+          results.push(this.validateWaypoint(rightX, cy - Math.floor((memberCount - teamSize) / 2) + i, cx, cy));
+        }
+        break;
+      }
+
+      case 'parade': {
+        // 4 corner waypoints forming a rectangle around the TH
+        const r = 4;
+        results.push(this.validateWaypoint(cx - r, cy - r, cx, cy));
+        results.push(this.validateWaypoint(cx + r, cy - r, cx, cy));
+        results.push(this.validateWaypoint(cx + r, cy + r, cx, cy));
+        results.push(this.validateWaypoint(cx - r, cy + r, cx, cy));
+        break;
+      }
+
+      case 'scavenger_hunt': {
+        // Random waypoints spread across the fair area
+        for (let i = 0; i < FAIR_SCAVENGER_WAYPOINT_COUNT; i++) {
+          const dx = Math.floor((Math.random() - 0.5) * 2 * FAIR_GATHER_DISPERSE_RADIUS);
+          const dy = Math.floor((Math.random() - 0.5) * 2 * FAIR_GATHER_DISPERSE_RADIUS);
+          results.push(this.validateWaypoint(cx + dx, cy + dy, cx, cy));
+        }
+        break;
+      }
+    }
+
+    return results;
+  }
+
+  /** Clamp a waypoint to fair area and ensure walkability, falling back to adjacent tiles */
+  private validateWaypoint(x: number, y: number, cx: number, cy: number): { x: number; y: number } {
+    // Clamp within fair area
+    const clampedX = Math.max(cx - FAIR_GATHER_DISPERSE_RADIUS, Math.min(cx + FAIR_GATHER_DISPERSE_RADIUS, x));
+    const clampedY = Math.max(cy - FAIR_GATHER_DISPERSE_RADIUS, Math.min(cy + FAIR_GATHER_DISPERSE_RADIUS, y));
+
+    const tile = this.game.tileMap.get(clampedX, clampedY);
+    if (tile && !tile.blocksMovement) return { x: clampedX, y: clampedY };
+
+    // Try adjacent tiles
+    const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]];
+    for (const [dx, dy] of offsets) {
+      const nx = clampedX + dx;
+      const ny = clampedY + dy;
+      const adj = this.game.tileMap.get(nx, ny);
+      if (adj && !adj.blocksMovement) return { x: nx, y: ny };
+    }
+
+    // Last resort: return center-adjacent
+    return { x: cx + 1, y: cy + 1 };
+  }
+
+  /** Check if >=60% of group members are within 1 tile of their start waypoint */
+  private areGroupMembersAssembled(group: FairGroupActivity): boolean {
+    let near = 0;
+    for (const mid of group.memberIds) {
+      const pos = this.game.world.getComponent<any>(mid, 'position');
+      if (!pos) continue;
+      const wpIdx = group.waypointIndex[mid];
+      if (wpIdx === undefined) continue;
+      const wp = group.waypoints[wpIdx];
+      if (!wp) continue;
+      if (Math.abs(pos.tileX - wp.x) <= 1 && Math.abs(pos.tileY - wp.y) <= 1) {
+        near++;
+      }
+    }
+    return near >= group.memberIds.length * 0.6;
+  }
+
+  /** Transition group from assembling to active */
+  private activateGroup(group: FairGroupActivity): void {
+    group.phase = 'active';
+    group.phaseTick = 0;
+
+    if (group.type === 'race') {
+      // Set each member's waypointIndex to their finish waypoint (second half of waypoints array)
+      const half = group.memberIds.length;
+      for (let i = 0; i < group.memberIds.length; i++) {
+        group.waypointIndex[group.memberIds[i]] = half + i;
+      }
+    } else if (group.type === 'group_dance') {
+      // Assign each member to an evenly-spaced starting point on the circle
+      for (let i = 0; i < group.memberIds.length; i++) {
+        group.waypointIndex[group.memberIds[i]] = i % group.waypoints.length;
+      }
+    } else if (group.type === 'parade') {
+      // Stagger members along the route
+      for (let i = 0; i < group.memberIds.length; i++) {
+        group.waypointIndex[group.memberIds[i]] = i % group.waypoints.length;
+      }
+    }
+  }
+
+  /** Dissolve a finished group — reassign members to random individual activities */
+  private dissolveGroup(group: FairGroupActivity, fest: NonNullable<typeof this.game.state.festival>): void {
+    const seasonal = SEASONAL_ACTIVITIES[fest.type] || [];
+    const pool = [...GENERIC_ACTIVITIES, ...seasonal];
+    for (const mid of group.memberIds) {
+      fest.fairActivities[mid] = pool[Math.floor(Math.random() * pool.length)];
+    }
+  }
+
+  /** Get citizens in the fair area who are not in any active group */
+  getAvailableFairCitizens(fest: NonNullable<typeof this.game.state.festival>): EntityId[] {
+    const grouped = new Set<EntityId>();
+    if (fest.fairGroups) {
+      for (const g of fest.fairGroups) {
+        if (g.phase !== 'finished') {
+          for (const mid of g.memberIds) grouped.add(mid);
+        }
+      }
+    }
+
+    const result: EntityId[] = [];
+    const citizens = this.game.world.getComponentStore<any>('citizen');
+    const positions = this.game.world.getComponentStore<any>('position');
+    if (!citizens || !positions) return result;
+
+    const thPos = this.game.world.getComponent<any>(fest.townHallId, 'position');
+    const thBld = this.game.world.getComponent<any>(fest.townHallId, 'building');
+    if (!thPos || !thBld) return result;
+
+    const cx = thPos.tileX + Math.floor(thBld.width / 2);
+    const cy = thPos.tileY + Math.floor(thBld.height / 2);
+
+    for (const [id] of citizens) {
+      if (grouped.has(id)) continue;
+      const pos = positions.get(id);
+      if (!pos) continue;
+      if (Math.abs(pos.tileX - cx) <= FAIR_GATHER_DISPERSE_RADIUS
+       && Math.abs(pos.tileY - cy) <= FAIR_GATHER_DISPERSE_RADIUS) {
+        result.push(id);
+      }
+    }
+    return result;
   }
 
   /**
@@ -588,6 +955,7 @@ export class FestivalSystem {
     fest.ticksRemaining = 0;
     fest.fairActivities = {};
     fest.fairVisitorIds = [];
+    fest.fairGroups = [];
 
     // Resume game at 1x
     this.game.state.paused = false;

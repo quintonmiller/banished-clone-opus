@@ -573,15 +573,31 @@ export const FAIR_VISITOR_SPAWN_MARGIN = 15;                   // tiles from map
 export const FAIR_FLOURISH_PARTICLE_BURST = 40;
 export const FAIR_ACTIVITY_CHANGE_INTERVAL = 60;               // ticks between activity reassignment
 export const FAIR_HAPPINESS_PER_ACTIVITY_TICK = 0.03;
-// ── Fair activity movement ───────────────────────────────────
-export const FAIR_ROAM_MOVE_INTERVAL = 40;                     // ticks between moves for roaming activities
+// ── Fair activity movement (individual) ──────────────────────
+export const FAIR_ROAM_MOVE_INTERVAL = 15;                     // ticks between moves for roaming activities
 export const FAIR_ROAM_RADIUS = 3;                             // tiles from current position
 export const FAIR_RACE_MOVE_INTERVAL = 25;                     // ticks between racing re-targets
 export const FAIR_RACE_DISTANCE = 5;                           // tiles for race legs
-export const FAIR_SOCIAL_MOVE_INTERVAL = 60;                   // ticks between social clustering moves
+export const FAIR_SOCIAL_MOVE_INTERVAL = 20;                   // ticks between social clustering moves
 export const FAIR_SOCIAL_PROXIMITY = 4;                        // tiles to search for same-activity partner
-export const FAIR_IDLE_MOVE_INTERVAL = 80;                     // ticks between slight shifts for stationary activities
-export const FAIR_IDLE_SHIFT = 1;                              // tiles to shift for stationary activities
+export const FAIR_IDLE_MOVE_INTERVAL = 25;                     // ticks between slight shifts for stationary activities
+export const FAIR_IDLE_SHIFT = 2;                              // tiles to shift for stationary activities
+// ── Fair group activities ────────────────────────────────────
+export const FAIR_GROUP_FORMATION_INTERVAL = 30;               // ticks between group formation attempts
+export const FAIR_GROUP_MIN_SIZE = 3;
+export const FAIR_GROUP_MAX_SIZE = 8;
+export const FAIR_GROUP_MAX_CONCURRENT = 3;                    // max simultaneous groups
+export const FAIR_GROUP_ASSEMBLE_TIMEOUT = 25;                 // ticks to assemble before activating
+// Per-type durations (active phase ticks)
+export const FAIR_RACE_DURATION = 50;
+export const FAIR_DANCE_DURATION = 70;
+export const FAIR_SCAVENGER_DURATION = 80;
+export const FAIR_TUG_DURATION = 40;
+export const FAIR_PARADE_DURATION = 60;
+export const FAIR_FEAST_DURATION = 60;
+// Spatial
+export const FAIR_DANCE_CIRCLE_RADIUS = 3;                    // tiles
+export const FAIR_SCAVENGER_WAYPOINT_COUNT = 6;
 
 // ── Milestones & Narrative Events ──────────────────────────────
 export const MILESTONE_CHECK_INTERVAL = 8 * HOUR;             // check every 8 hours

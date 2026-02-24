@@ -136,7 +136,23 @@ export type FairActivity =
   // Autumn-specific
   | 'pie_contest' | 'apple_bobbing'
   // Winter-specific
-  | 'ice_carving' | 'snowball_fight';
+  | 'ice_carving' | 'snowball_fight'
+  // Group activities
+  | 'group_race' | 'group_dance' | 'scavenger_hunt' | 'tug_of_war' | 'parade';
+
+export type FairGroupType = 'race' | 'group_dance' | 'feast_circle' | 'tug_of_war' | 'parade' | 'scavenger_hunt';
+
+export interface FairGroupActivity {
+  id: number;
+  type: FairGroupType;
+  memberIds: EntityId[];
+  phase: 'assembling' | 'active' | 'finished';
+  phaseTick: number;
+  waypoints: { x: number; y: number }[];
+  waypointIndex: Record<number, number>;
+  startTick: number;
+  durationTicks: number;
+}
 
 export interface FairSeasonStats {
   babiesBorn: number;
@@ -186,6 +202,10 @@ export interface FestivalState {
   fairActivities: Record<number, FairActivity>;
   /** Village prosperity score (0-1) at time of fair, used for reward scaling */
   prosperity: number;
+  /** Active group activities during the fair */
+  fairGroups: FairGroupActivity[];
+  /** Next group ID counter */
+  fairGroupNextId: number;
 }
 
 export interface EventLogEntry {
