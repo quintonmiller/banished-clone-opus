@@ -581,14 +581,21 @@ export class Game {
     // Record clicked tile for debug overlay
     this.uiManager.debugTile = { x: tile.x, y: tile.y };
 
+    const tileData = this.tileMap.get(tile.x, tile.y);
+    const clickedBuildingId = tileData?.buildingId ?? null;
+
     // Check citizens first
     const positions = this.world.getComponentStore<any>('position');
     const citizens = this.world.getComponentStore<any>('citizen');
     if (positions && citizens) {
       let closest: EntityId | null = null;
-      let closestDist = 2; // max 2 tiles away
+      // When clicking a building tile, only allow same-tile citizen picks.
+      // This prevents nearby/hidden villagers from stealing building clicks.
+      const maxCitizenDist = clickedBuildingId !== null ? 0.75 : 2;
+      let closestDist = maxCitizenDist;
 
-      for (const [id] of citizens) {
+      for (const [id, citizen] of citizens) {
+        if (citizen.insideBuildingId != null) continue;
         const pos = positions.get(id);
         if (!pos) continue;
         const dx = pos.tileX - tile.x;
@@ -607,9 +614,8 @@ export class Game {
     }
 
     // Check buildings
-    const tileData = this.tileMap.get(tile.x, tile.y);
-    if (tileData?.buildingId) {
-      this.state.selectedEntity = tileData.buildingId;
+    if (clickedBuildingId !== null) {
+      this.state.selectedEntity = clickedBuildingId;
       return;
     }
 
