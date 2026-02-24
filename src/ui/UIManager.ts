@@ -43,6 +43,14 @@ export class UIManager {
       if (!data?.text) return;
       this.addNotification(data.text, data.color || '#ffffff', data.key);
     });
+
+    // Achievement unlock notifications
+    game.eventBus.on('achievement_unlocked', (data: any) => {
+      const prefix = data.isFirstEver ? 'Achievement Unlocked' : 'Achievement Earned';
+      let text = `${prefix}: ${data.name}`;
+      if (data.bonusDescription) text += ` (${data.bonusDescription})`;
+      this.addNotification(text, '#ffd700');
+    });
   }
 
   /** Pure hit-test: returns true if the point is over any UI element (no side effects) */

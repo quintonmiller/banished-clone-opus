@@ -47,8 +47,8 @@ src/
 2. CitizenAISystem — priority-based decision tree (+ skill XP, tavern visits)
 3. MovementSystem — A* path following
 4. ConstructionSystem — builder material delivery (+ skill/trait bonuses)
-5. ProductionSystem — building recipes + resource output (+ multi-recipe, crop stages, skill/milestone bonuses)
-6. NeedsSystem — food/warmth/health/energy decay (+ well/chapel happiness, milestone bonuses)
+5. ProductionSystem — building recipes + resource output (+ multi-recipe, crop stages, skill/achievement bonuses)
+6. NeedsSystem — food/warmth/health/energy decay (+ well/chapel happiness, achievement bonuses)
 7. StorageSystem — house restocking, food spoilage, market
 8. PopulationSystem — aging, births, families, nomads, worker assignment (+ chapel weddings)
 9. TradeSystem — merchant visits
@@ -58,7 +58,7 @@ src/
 13. WeatherSystem — storms, droughts, cold snaps
 14. FestivalSystem — seasonal festivals at Town Hall with lingering effects
 15. LivestockSystem — chicken/cattle production, feeding, breeding, winter exposure
-16. MilestoneSystem — milestone tracking, permanent bonuses, random narrative events
+16. AchievementSystem — 65 cross-game achievements, per-game bonuses, random narrative events (replaces MilestoneSystem)
 
 ### Data-driven design — all tuning in config files
 - **`constants.ts`** — single source of truth for ALL gameplay values. Organized into sections:
@@ -81,7 +81,7 @@ src/
   - Cooking/meal quality (restore amounts, warmth/happiness/energy boosts)
   - Festivals (duration, happiness, effect multipliers)
   - Animals/livestock (capacity, feed rates, production timers, breeding)
-  - Milestones/narrative events (check intervals, event chances)
+  - Achievements/narrative events (check intervals, event chances)
   - Tavern/well/chapel (happiness values, radii)
 - **`data/BuildingDefs.ts`** — per-building stats (cost, size, constructionWork, maxWorkers)
 - **`data/RecipeDefs.ts`** — production recipes (inputs, outputs, cooldownTicks)
@@ -139,7 +139,9 @@ src/
 - Crop fields use growth stages (`producer.cropStage`) instead of normal timer-based production — handled by `updateCropField()` in ProductionSystem
 - Livestock data lives in LivestockSystem's internal map (not as ECS components) — use `game.livestockSystem.getLivestockData(buildingId)` to access
 - Festival effects checked via `game.festivalSystem.hasActiveEffect('type')` — lingering effects last the rest of the season
-- Milestone bonuses accessed via `game.milestoneSystem.getBonus('bonusType')` — returns accumulated value from all achieved milestones
+- Achievement bonuses accessed via `game.achievementSystem.getBonus('bonusType')` — returns accumulated value from achievements with bonus fields
+- `AchievementStore` is a persistent cross-game singleton (localStorage + IDB) — import from `src/save/AchievementStore.ts`
+- Achievement definitions in `src/data/AchievementDefs.ts` — `ACHIEVEMENT_MAP` for lookup by ID
 - Personality traits stored as `string[]` on citizen component; skill XP stored on worker component as `worker.skills[skillType] = { xp, level }`
 
 ## Versioning & Changelog

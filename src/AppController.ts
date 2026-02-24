@@ -3,7 +3,9 @@ import { StartScreen } from './ui/StartScreen';
 import { PauseMenu } from './ui/PauseMenu';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { FairSummaryUI } from './ui/FairSummaryUI';
+import { AchievementPanel } from './ui/AchievementPanel';
 import { SaveManager } from './save/SaveManager';
+import { AchievementStore } from './save/AchievementStore';
 
 const AUTO_SAVE_INTERVAL_MS = 60_000; // auto-save every 60 seconds
 
@@ -17,21 +19,27 @@ export class AppController {
   private pauseMenu: PauseMenu;
   private settingsPanel: SettingsPanel;
   private fairSummaryUI: FairSummaryUI;
+  private achievementPanel: AchievementPanel;
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null;
   private saveManager = new SaveManager();
+  /** Where to return when closing the achievement panel */
+  private achievementReturnTo: 'pause' | 'start' | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.pauseMenu = new PauseMenu();
     this.settingsPanel = new SettingsPanel();
     this.fairSummaryUI = new FairSummaryUI();
+    this.achievementPanel = new AchievementPanel();
     this.setupPauseMenuCallbacks();
     this.setupSettingsCallbacks();
     this.setupFairSummaryCallbacks();
+    this.setupAchievementCallbacks();
   }
 
   async start(): Promise<void> {
     await this.saveManager.init();
+    await AchievementStore.initFromIDB(this.saveManager.idbStore);
 
     // Try to auto-resume from a save
     const data = await this.saveManager.loadGame();
@@ -76,6 +84,34 @@ export class AppController {
       const manualUrl = new URL('manual/index.html', window.location.href);
       window.open(manualUrl.toString(), '_blank', 'noopener');
     };
+    this.startScreen.onAchievements = () => {
+      this.achievementReturnTo = 'start';
+      this.achievementPanel.show();
+    };
+    this.startScreen.overlayHook = (ctx) => {
+      this.achievementPanel.draw(ctx);
+    };
+    this.startScreen.onOverlayMouseMove = (x, y) => {
+      if (this.achievementPanel.isVisible()) {
+        this.achievementPanel.handleMouseMove(x, y);
+        return true;
+      }
+      return false;
+    };
+    this.startScreen.onOverlayClick = (x, y) => {
+      if (this.achievementPanel.isVisible()) {
+        this.achievementPanel.handleClick(x, y);
+        return true;
+      }
+      return false;
+    };
+    this.startScreen.onOverlayScroll = (delta) => {
+      if (this.achievementPanel.isVisible()) {
+        this.achievementPanel.handleScroll(delta);
+        return true;
+      }
+      return false;
+    };
     this.startScreen.start();
   }
 
@@ -118,17 +154,22 @@ export class AppController {
   private wireGameEvents(): void {
     if (!this.game) return;
 
-    // Overlay hook — draw pause menu, settings panel, or fair summary
+    // Overlay hook — draw pause menu, settings panel, fair summary, or achievement panel
     this.game.postRenderHook = (ctx) => {
       this.fairSummaryUI.draw(ctx);
       this.pauseMenu.draw(ctx);
       this.settingsPanel.draw(ctx);
+      this.achievementPanel.draw(ctx);
     };
 
     // Listen for Escape → pause menu request
     this.game.eventBus.on('request_pause_menu', () => {
       // Don't open pause menu while fair summary is showing
       if (this.fairSummaryUI.isVisible()) return;
+      if (this.achievementPanel.isVisible()) {
+        this.achievementPanel.onBack?.();
+        return;
+      }
       if (this.settingsPanel.isVisible()) {
         this.settingsPanel.hide();
         this.pauseMenu.show();
@@ -154,10 +195,14 @@ export class AppController {
     this.canvas.addEventListener('mousemove', this.onMouseMove);
     this.canvas.addEventListener('mousedown', this.onPauseMouseDown, true);
     this.canvas.addEventListener('mouseup', this.onPauseClick, true);
+    this.canvas.addEventListener('wheel', this.onOverlayWheel, { capture: true, passive: false });
   }
 
   private onMouseMove = (e: MouseEvent): void => {
-    if (this.fairSummaryUI.isVisible()) {
+    if (this.achievementPanel.isVisible()) {
+      this.achievementPanel.handleMouseMove(e.clientX, e.clientY);
+      this.canvas.style.cursor = 'pointer';
+    } else if (this.fairSummaryUI.isVisible()) {
       this.fairSummaryUI.handleMouseMove(e.clientX, e.clientY);
       this.canvas.style.cursor = 'pointer';
     } else if (this.settingsPanel.isVisible()) {
@@ -170,7 +215,9 @@ export class AppController {
   };
 
   private onPauseMouseDown = (e: MouseEvent): void => {
-    if (this.fairSummaryUI.isVisible()) {
+    if (this.achievementPanel.isVisible()) {
+      e.stopImmediatePropagation();
+    } else if (this.fairSummaryUI.isVisible()) {
       e.stopImmediatePropagation();
     } else if (this.settingsPanel.isVisible()) {
       e.stopImmediatePropagation();
@@ -192,8 +239,19 @@ export class AppController {
     }
   };
 
+  private onOverlayWheel = (e: WheelEvent): void => {
+    if (this.achievementPanel.isVisible()) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      this.achievementPanel.handleScroll(e.deltaY > 0 ? -1 : 1);
+    }
+  };
+
   private onPauseClick = (e: MouseEvent): void => {
-    if (this.fairSummaryUI.isVisible()) {
+    if (this.achievementPanel.isVisible()) {
+      e.stopImmediatePropagation();
+      this.achievementPanel.handleClick(e.clientX, e.clientY);
+    } else if (this.fairSummaryUI.isVisible()) {
       e.stopImmediatePropagation();
       this.fairSummaryUI.handleClick(e.clientX, e.clientY);
     } else if (this.settingsPanel.isVisible()) {
@@ -265,6 +323,7 @@ export class AppController {
       this.canvas.removeEventListener('mousemove', this.onMouseMove);
       this.canvas.removeEventListener('mousedown', this.onPauseMouseDown, true);
       this.canvas.removeEventListener('mouseup', this.onPauseClick, true);
+      this.canvas.removeEventListener('wheel', this.onOverlayWheel, true);
       this.pauseMenu.hide();
       this.stopAutoSave();
 
@@ -288,6 +347,12 @@ export class AppController {
       this.settingsPanel.show();
     };
 
+    this.pauseMenu.onAchievements = () => {
+      this.pauseMenu.hide();
+      this.achievementReturnTo = 'pause';
+      this.achievementPanel.show();
+    };
+
     this.pauseMenu.onManual = () => {
       const manualUrl = new URL('manual/index.html', window.location.href);
       window.open(manualUrl.toString(), '_blank', 'noopener');
@@ -301,6 +366,7 @@ export class AppController {
       this.canvas.removeEventListener('mousemove', this.onMouseMove);
       this.canvas.removeEventListener('mousedown', this.onPauseMouseDown, true);
       this.canvas.removeEventListener('mouseup', this.onPauseClick, true);
+      this.canvas.removeEventListener('wheel', this.onOverlayWheel, true);
       this.pauseMenu.hide();
       this.showStartScreen();
     };
@@ -320,6 +386,19 @@ export class AppController {
     this.settingsPanel.onBack = () => {
       this.settingsPanel.hide();
       this.pauseMenu.show();
+    };
+  }
+
+  private setupAchievementCallbacks(): void {
+    this.achievementPanel.onBack = () => {
+      this.achievementPanel.hide();
+      if (this.achievementReturnTo === 'pause') {
+        this.pauseMenu.show();
+      } else if (this.achievementReturnTo === 'start') {
+        // Start screen is still running, just hide the panel
+      }
+      this.achievementReturnTo = null;
+      this.canvas.style.cursor = 'default';
     };
   }
 }

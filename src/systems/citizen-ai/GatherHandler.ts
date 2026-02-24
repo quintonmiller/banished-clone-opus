@@ -189,7 +189,7 @@ export class GatherHandler {
       const skillBonus = skillLevel * SKILL_EFFICIENCY_PER_LEVEL;
       const traitBonus = getCitizenTraitBonus(citizen);
       const educationBonus = citizen.isEducated ? (EDUCATION_BONUS - 1) : 0;
-      const milestoneBonus = this.game.milestoneSystem.getBonus('gathering_speed');
+      const milestoneBonus = this.game.achievementSystem.getBonus('gathering_speed');
       const effectiveTime = baseTime / (seasonalRate * (1 + skillBonus + traitBonus + educationBonus + milestoneBonus));
 
       // Grant skill XP while gathering
@@ -720,7 +720,7 @@ export class GatherHandler {
 
       const skillLevel = getWorkerSkillLevel(worker);
       const skillBonus = skillLevel * SKILL_EFFICIENCY_PER_LEVEL;
-      const milestoneBonus = this.game.milestoneSystem.getBonus('gathering_speed');
+      const milestoneBonus = this.game.achievementSystem.getBonus('gathering_speed');
       const effectiveTime = GATHER_TICKS_BASE / (1 + skillBonus + milestoneBonus);
 
       if (worker.gatherTimer >= effectiveTime) {
@@ -764,7 +764,7 @@ export class GatherHandler {
 
       const skillLevel = getWorkerSkillLevel(worker);
       const skillBonus = skillLevel * SKILL_EFFICIENCY_PER_LEVEL;
-      const milestoneBonus = this.game.milestoneSystem.getBonus('gathering_speed');
+      const milestoneBonus = this.game.achievementSystem.getBonus('gathering_speed');
       const cycleTicks = isQuarry ? QUARRY_CYCLE_TICKS : MINE_CYCLE_TICKS;
       const effectiveTime = cycleTicks / (1 + skillBonus + milestoneBonus);
 

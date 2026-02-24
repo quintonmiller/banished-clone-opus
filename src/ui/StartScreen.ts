@@ -1,5 +1,7 @@
 import type { SaveManager } from '../save/SaveManager';
 import { GAME_VERSION } from '../version';
+import { AchievementStore } from '../save/AchievementStore';
+import { TOTAL_ACHIEVEMENTS } from '../data/AchievementDefs';
 
 interface Button {
   label: string;
@@ -26,6 +28,11 @@ export class StartScreen {
   onNewGame: ((seed: number) => void) | null = null;
   onLoadGame: (() => void) | null = null;
   onManual: (() => void) | null = null;
+  onAchievements: (() => void) | null = null;
+  overlayHook: ((ctx: CanvasRenderingContext2D) => void) | null = null;
+  onOverlayMouseMove: ((x: number, y: number) => boolean) | null = null;
+  onOverlayClick: ((x: number, y: number) => boolean) | null = null;
+  onOverlayScroll: ((delta: number) => boolean) | null = null;
 
   constructor(canvas: HTMLCanvasElement, saveManager: SaveManager) {
     this.canvas = canvas;
@@ -37,6 +44,7 @@ export class StartScreen {
     // Mouse events
     this.canvas.addEventListener('mousemove', this.onMouseMove);
     this.canvas.addEventListener('click', this.onClick);
+    this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
   start(): void {
@@ -51,6 +59,7 @@ export class StartScreen {
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.canvas.removeEventListener('mousemove', this.onMouseMove);
     this.canvas.removeEventListener('click', this.onClick);
+    this.canvas.removeEventListener('wheel', this.onWheel);
     this.hideSeedInput();
     if (this.footer) this.footer.style.display = 'none';
   }
@@ -210,6 +219,15 @@ export class StartScreen {
         x: btnX, y: btnY, w: btnW, h: btnH,
         enabled: true,
       });
+      btnY += btnH + 12;
+
+      const achieveCount = AchievementStore.getUnlockedCount();
+      this.buttons.push({
+        label: 'Achievements',
+        x: btnX, y: btnY, w: btnW, h: btnH + 12,
+        enabled: true,
+        subText: `${achieveCount} / ${TOTAL_ACHIEVEMENTS} unlocked`,
+      });
     }
 
     // Draw buttons
@@ -218,6 +236,15 @@ export class StartScreen {
     }
 
     this.ctx.restore();
+
+    // Draw overlays (achievement panel)
+    if (this.overlayHook) {
+      const dpr2 = window.devicePixelRatio || 1;
+      this.ctx.save();
+      this.ctx.setTransform(dpr2, 0, 0, dpr2, 0, 0);
+      this.ctx.restore();
+      this.overlayHook(this.ctx);
+    }
   }
 
   private drawButton(btn: Button, hovered: boolean): void {
@@ -269,6 +296,11 @@ export class StartScreen {
   }
 
   private onMouseMove = (e: MouseEvent): void => {
+    if (this.onOverlayMouseMove?.(e.clientX, e.clientY)) {
+      this.canvas.style.cursor = 'pointer';
+      this.hoveredButton = -1;
+      return;
+    }
     const mx = e.clientX;
     const my = e.clientY;
     this.hoveredButton = -1;
@@ -283,6 +315,7 @@ export class StartScreen {
   };
 
   private onClick = (e: MouseEvent): void => {
+    if (this.onOverlayClick?.(e.clientX, e.clientY)) return;
     const mx = e.clientX;
     const my = e.clientY;
     for (let i = 0; i < this.buttons.length; i++) {
@@ -296,9 +329,16 @@ export class StartScreen {
           if (i === 1) this.showSeedInput();                 // New Game (from seed)
           if (i === 2) this.onLoadGame?.();                  // Load Game
           if (i === 3) this.onManual?.();                    // Gameplay Manual
+          if (i === 4) this.onAchievements?.();              // Achievements
         }
         break;
       }
+    }
+  };
+
+  private onWheel = (e: WheelEvent): void => {
+    if (this.onOverlayScroll?.(e.deltaY > 0 ? -1 : 1)) {
+      e.preventDefault();
     }
   };
 

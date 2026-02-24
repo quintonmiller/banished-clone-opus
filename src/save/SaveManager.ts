@@ -8,6 +8,11 @@ export class SaveManager {
   private idbReady = false;
   private metadataCache: SaveMetadata = { exists: false };
 
+  /** Expose IDB store for AchievementStore initialization */
+  get idbStore(): IndexedDBStore {
+    return this.idb;
+  }
+
   /** Open IDB, migrate any localStorage save, warm metadata cache. */
   async init(): Promise<void> {
     this.idbReady = await this.idb.init();
@@ -114,7 +119,7 @@ export class SaveManager {
         particle: game.particleSystem.getInternalState(),
         festival: game.festivalSystem.getInternalState(),
         livestock: game.livestockSystem.getInternalState(),
-        milestone: game.milestoneSystem.getInternalState(),
+        achievement: game.achievementSystem.getInternalState(),
       },
     };
   }

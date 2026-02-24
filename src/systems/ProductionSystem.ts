@@ -117,9 +117,9 @@ export class ProductionSystem {
       const skillBonus = this.getSkillBonus(id, bld.type);
       efficiency *= (1 + skillBonus);
 
-      // Milestone bonuses
-      const milestones = this.game.milestoneSystem;
-      efficiency *= (1 + milestones.getBonus('work_speed') + milestones.getBonus('all_production'));
+      // Achievement bonuses
+      const achievements = this.game.achievementSystem;
+      efficiency *= (1 + achievements.getBonus('work_speed') + achievements.getBonus('all_production'));
 
       // Tool check
       const needsTools = this.buildingNeedsTools(bld.type);
@@ -146,22 +146,22 @@ export class ProductionSystem {
           const cropRotationBonus = this.game.festivalSystem.getFairBonus('cropRotation');
           if (cropRotationBonus > 0) efficiency *= (1 + cropRotationBonus);
           // Milestone crop growth bonus
-          efficiency *= (1 + milestones.getBonus('crop_growth'));
+          efficiency *= (1 + achievements.getBonus('crop_growth'));
         } else if (bld.type === BuildingType.HUNTING_CABIN) {
           efficiency *= seasonData.huntingRate;
-          efficiency *= (1 + milestones.getBonus('gathering_speed'));
+          efficiency *= (1 + achievements.getBonus('gathering_speed'));
         } else if (bld.type === BuildingType.FISHING_DOCK) {
           efficiency *= seasonData.fishingRate;
           const fishingBonus = this.game.festivalSystem.getFairBonus('fishingNets');
           if (fishingBonus > 0) efficiency *= (1 + fishingBonus);
-          efficiency *= (1 + milestones.getBonus('gathering_speed'));
+          efficiency *= (1 + achievements.getBonus('gathering_speed'));
         } else if (bld.type === BuildingType.HERBALIST) {
           efficiency *= seasonData.herbRate;
-          efficiency *= (1 + milestones.getBonus('gathering_speed'));
+          efficiency *= (1 + achievements.getBonus('gathering_speed'));
         } else {
           efficiency *= seasonData.gatheringRate;
           // Milestone gathering speed bonus
-          efficiency *= (1 + milestones.getBonus('gathering_speed'));
+          efficiency *= (1 + achievements.getBonus('gathering_speed'));
         }
       }
 

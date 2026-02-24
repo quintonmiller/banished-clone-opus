@@ -24,7 +24,7 @@ import { ParticleSystem } from './systems/ParticleSystem';
 import { WeatherSystem } from './systems/WeatherSystem';
 import { FestivalSystem } from './systems/FestivalSystem';
 import { LivestockSystem } from './systems/LivestockSystem';
-import { MilestoneSystem } from './systems/MilestoneSystem';
+import { AchievementSystem } from './systems/AchievementSystem';
 import { UIManager } from './ui/UIManager';
 import { PlacementController } from './input/PlacementController';
 import { GameState, EntityId, FestivalType } from './types';
@@ -85,7 +85,7 @@ export class Game {
   weatherSystem: WeatherSystem;
   festivalSystem: FestivalSystem;
   livestockSystem: LivestockSystem;
-  milestoneSystem: MilestoneSystem;
+  achievementSystem: AchievementSystem;
   uiManager: UIManager;
   loop: GameLoop;
 
@@ -180,7 +180,7 @@ export class Game {
     this.weatherSystem = new WeatherSystem(this);
     this.festivalSystem = new FestivalSystem(this);
     this.livestockSystem = new LivestockSystem(this);
-    this.milestoneSystem = new MilestoneSystem(this);
+    this.achievementSystem = new AchievementSystem(this);
 
     // UI
     this.uiManager = new UIManager(this);
@@ -347,8 +347,11 @@ export class Game {
     if (data.systems.livestock) {
       this.livestockSystem.setInternalState(data.systems.livestock);
     }
-    if (data.systems.milestone) {
-      this.milestoneSystem.setInternalState(data.systems.milestone);
+    if (data.systems.achievement) {
+      this.achievementSystem.setInternalState(data.systems.achievement);
+    } else if (data.systems.milestone) {
+      // Backward compat: load old milestone data into achievement system
+      this.achievementSystem.setInternalState(data.systems.milestone);
     }
 
     // Restore event log
@@ -372,6 +375,7 @@ export class Game {
 
   /** Stop the game loop and clean up */
   destroy(): void {
+    this.achievementSystem.onGameEnd();
     this.loop.stop();
     this.input.destroy();
     window.removeEventListener('resize', this.resizeHandler);
@@ -410,7 +414,7 @@ export class Game {
     this.weatherSystem.update();
     this.festivalSystem.update();
     this.livestockSystem.update();
-    this.milestoneSystem.update();
+    this.achievementSystem.update();
 
     // Update population count (exclude temporary fair visitors)
     const citizens = this.world.getComponentStore('citizen');

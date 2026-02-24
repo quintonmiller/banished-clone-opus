@@ -599,11 +599,12 @@ export const FAIR_FEAST_DURATION = 60;
 export const FAIR_DANCE_CIRCLE_RADIUS = 3;                    // tiles
 export const FAIR_SCAVENGER_WAYPOINT_COUNT = 6;
 
-// ── Milestones & Narrative Events ──────────────────────────────
-export const MILESTONE_CHECK_INTERVAL = 8 * HOUR;             // check every 8 hours
+// ── Achievements & Narrative Events ─────────────────────────────
+export const ACHIEVEMENT_CHECK_INTERVAL = 500;                  // periodic check every ~50s at 1x
 export const NARRATIVE_EVENT_CHANCE = 0.003;
 export const NARRATIVE_EVENT_INTERVAL = 1 * DAY;              // min 1 day between events
 
+// Legacy MilestoneId kept for backward-compat save loading
 export const MilestoneId = {
   FIRST_HOUSE: 'first_house',
   FIRST_WINTER: 'first_winter',
@@ -617,6 +618,101 @@ export const MilestoneId = {
   SELF_SUFFICIENT: 'self_sufficient',
 } as const;
 export type MilestoneId = (typeof MilestoneId)[keyof typeof MilestoneId];
+
+export const AchievementId = {
+  // Survival (13)
+  SURVIVE_1_YEAR: 'survive_1_year',
+  SURVIVE_3_YEARS: 'survive_3_years',
+  SURVIVE_5_YEARS: 'survive_5_years',
+  SURVIVE_10_YEARS: 'survive_10_years',
+  SURVIVE_25_YEARS: 'survive_25_years',
+  SURVIVE_50_YEARS: 'survive_50_years',
+  NO_DEATHS_YEAR_1: 'no_deaths_year_1',
+  NO_DEATHS_YEAR_3: 'no_deaths_year_3',
+  SURVIVE_FIRST_WINTER: 'survive_first_winter',
+  SURVIVE_HARSH_WINTER: 'survive_harsh_winter',
+  SURVIVE_STORM: 'survive_storm',
+  SURVIVE_DROUGHT: 'survive_drought',
+  RECOVER_FROM_SPIRAL: 'recover_from_spiral',
+  // Population (13)
+  POP_30: 'pop_30',
+  POP_50: 'pop_50',
+  POP_75: 'pop_75',
+  POP_100: 'pop_100',
+  POP_150: 'pop_150',
+  POP_200: 'pop_200',
+  FIRST_BIRTH: 'first_birth',
+  FIRST_WEDDING: 'first_wedding',
+  BABY_BOOM: 'baby_boom',
+  FAMILY_OF_FIVE: 'family_of_five',
+  ELDER_70: 'elder_70',
+  ELDER_80: 'elder_80',
+  FULL_HOUSE: 'full_house',
+  // Building (13)
+  FIRST_BUILDING: 'first_building',
+  BUILD_10: 'build_10',
+  BUILD_25: 'build_25',
+  BUILD_50: 'build_50',
+  BUILD_100: 'build_100',
+  BUILD_ALL_TYPES: 'build_all_types',
+  FIRST_UPGRADE: 'first_upgrade',
+  UPGRADE_5: 'upgrade_5',
+  UPGRADE_ALL: 'upgrade_all',
+  TOWN_HALL_BUILT: 'town_hall_built',
+  ROAD_NETWORK_100: 'road_network_100',
+  BRIDGE_BUILDER: 'bridge_builder',
+  STONE_AGE: 'stone_age',
+  // Economy (14)
+  FOOD_STOCKPILE_500: 'food_stockpile_500',
+  FOOD_STOCKPILE_2000: 'food_stockpile_2000',
+  FOOD_STOCKPILE_5000: 'food_stockpile_5000',
+  RESOURCE_HOARDER: 'resource_hoarder',
+  FIRST_TRADE: 'first_trade',
+  TRADE_10: 'trade_10',
+  TRADE_25: 'trade_25',
+  SELF_SUFFICIENT: 'self_sufficient',
+  MASTER_CHEF: 'master_chef',
+  ALL_FOOD_TYPES: 'all_food_types',
+  FIRST_LIVESTOCK: 'first_livestock',
+  ANIMAL_FARM: 'animal_farm',
+  IRON_AGE: 'iron_age',
+  TOOL_MAKER: 'tool_maker',
+  // Challenge (9)
+  NO_TAVERN_POP_30: 'no_tavern_pop_30',
+  NO_TRADERS_YEAR_5: 'no_traders_year_5',
+  NO_NOMADS_POP_30: 'no_nomads_pop_30',
+  VEGETARIAN_VILLAGE: 'vegetarian_village',
+  NO_DEATHS_YEAR_5: 'no_deaths_year_5',
+  NO_DEATHS_YEAR_10: 'no_deaths_year_10',
+  SPEED_BUILD_TOWN_HALL: 'speed_build_town_hall',
+  MINIMAL_HOUSING: 'minimal_housing',
+  ONE_OF_EACH: 'one_of_each',
+  // Discovery (12)
+  FIRST_FESTIVAL: 'first_festival',
+  ALL_FESTIVALS: 'all_festivals',
+  FESTIVAL_ALL_REWARDS: 'festival_all_rewards',
+  NIGHT_OWL: 'night_owl',
+  EARLY_BIRD: 'early_bird',
+  MASTER_SKILL: 'master_skill',
+  EDUCATED_VILLAGE: 'educated_village',
+  ALL_TRAITS: 'all_traits',
+  CHEERFUL_VILLAGE: 'cheerful_village',
+  NARRATIVE_10: 'narrative_10',
+  NARRATIVE_25: 'narrative_25',
+  FULL_EMPLOYMENT: 'full_employment',
+  // Secret (10)
+  LONE_SURVIVOR: 'lone_survivor',
+  GHOST_TOWN: 'ghost_town',
+  CENTENARIAN: 'centenarian',
+  ALL_MILESTONES: 'all_milestones',
+  SPEED_YEAR_1: 'speed_year_1',
+  DOUBLE_DIGITS: 'double_digits',
+  SEED_42: 'seed_42',
+  ZERO_FOOD: 'zero_food',
+  MIDNIGHT_WEDDING: 'midnight_wedding',
+  SNOWBALL_FIGHT: 'snowball_fight',
+} as const;
+export type AchievementId = (typeof AchievementId)[keyof typeof AchievementId];
 
 // ── Animals & Livestock ────────────────────────────────────────
 export const CHICKEN_CAPACITY = 8;

@@ -189,8 +189,9 @@ export class EventLog {
       this.addEntry('festival', `${names[data.type] || data.type} has begun!`, '#ffdd44');
     });
 
-    bus.on('milestone_achieved', (data: any) => {
-      this.addEntry('milestone', `Milestone: ${data.name} — ${data.bonus}`, '#ffcc00');
+    bus.on('achievement_unlocked', (data: any) => {
+      const bonus = data.bonusDescription ? ` — ${data.bonusDescription}` : '';
+      this.addEntry('achievement', `Achievement: ${data.name}${bonus}`, '#ffd700');
     });
 
     bus.on('narrative_event', (data: any) => {
