@@ -3,6 +3,7 @@ export type PartnerPreference = 'opposite' | 'both' | 'same';
 export interface CitizenComponent {
   firstName: string;
   lastName: string;
+  originalLastName?: string;
   name: string;
   age: number;
   isMale: boolean;

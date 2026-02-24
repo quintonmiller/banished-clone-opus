@@ -338,6 +338,11 @@ export class PopulationSystem {
       partnerFamily.partnershipStartTick = undefined;
       partnerFamily.compatibility = undefined;
 
+      if (isMarried) {
+        this.restoreCitizenOriginalLastName(id);
+        this.restoreCitizenOriginalLastName(partnerId);
+      }
+
       // Happiness penalty
       const needsA = this.game.world.getComponent<any>(id, 'needs');
       const needsB = this.game.world.getComponent<any>(partnerId, 'needs');
@@ -586,18 +591,34 @@ export class PopulationSystem {
     if (citizenA.isMale !== citizenB.isMale) {
       const femaleCitizen = citizenA.isMale ? citizenB : citizenA;
       const maleCitizen = citizenA.isMale ? citizenA : citizenB;
-      femaleCitizen.lastName = maleCitizen.lastName;
+      this.changeCitizenLastNameForMarriage(femaleCitizen, maleCitizen.lastName);
     } else {
       const firstTakesSecond = this.game.rng.chance(0.5);
       if (firstTakesSecond) {
-        citizenA.lastName = citizenB.lastName;
+        this.changeCitizenLastNameForMarriage(citizenA, citizenB.lastName);
       } else {
-        citizenB.lastName = citizenA.lastName;
+        this.changeCitizenLastNameForMarriage(citizenB, citizenA.lastName);
       }
     }
 
     citizenA.name = formatCitizenName(citizenA.firstName, citizenA.lastName);
     citizenB.name = formatCitizenName(citizenB.firstName, citizenB.lastName);
+  }
+
+  private changeCitizenLastNameForMarriage(citizen: any, newLastName: string): void {
+    if (!citizen || citizen.lastName === newLastName) return;
+    if (!citizen.originalLastName) {
+      citizen.originalLastName = citizen.lastName;
+    }
+    citizen.lastName = newLastName;
+  }
+
+  private restoreCitizenOriginalLastName(citizenId: number): void {
+    const citizen = this.game.world.getComponent<any>(citizenId, 'citizen');
+    if (!citizen?.originalLastName) return;
+    if (citizen.lastName === citizen.originalLastName) return;
+    citizen.lastName = citizen.originalLastName;
+    citizen.name = formatCitizenName(citizen.firstName, citizen.lastName);
   }
 
   canFormPartnership(idA: number, idB: number): boolean {
