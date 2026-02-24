@@ -39,7 +39,7 @@ import {
   STARTING_RESOURCES, ResourceType, TileType, Profession,
   SPEED_OPTIONS, TILE_SIZE,
   PARTNER_PREFERENCE_OPPOSITE_SHARE, PARTNER_PREFERENCE_BOTH_SHARE, PARTNER_PREFERENCE_SAME_SHARE,
-  MINE_VEIN_EXHAUSTED_THRESHOLD, BuildingType,
+  MINE_VEIN_EXHAUSTED_THRESHOLD, BuildingType, INITIAL_HOUSE_WARMTH,
   DEMOLITION_WORK_MULT, DEMOLITION_RECLAIM_RATIO,
   FESTIVAL_DURATION_TICKS, FESTIVAL_HAPPINESS_BOOST,
   FAIR_CAMERA_ZOOM_DURATION_MS, FAIR_CAMERA_TARGET_ZOOM,
@@ -532,6 +532,10 @@ export class Game {
     if (this.input.isKeyDown('f6')) {
       this.debugTriggerFair();
       this.input.keys.delete('f6');
+    }
+    if (this.input.isKeyDown('f7')) {
+      this.debugSpawnAllBuildings();
+      this.input.keys.delete('f7');
     }
     if (this.input.isKeyDown('l')) {
       this.uiManager.toggleEventLog();
@@ -1301,5 +1305,149 @@ export class Game {
 
     this.eventBus.emit('festival_started', { type: fairType });
     this.uiManager.addNotification(`Debug: triggered ${fairType.replace(/_/g, ' ')}!`, '#ffdd44');
+  }
+
+  /**
+   * Debug: give a ton of resources and place one of every building type pre-built.
+   * Useful for visually testing building rendering.
+   *
+   * Hotkey: F7
+   * Console: game.debugSpawnAllBuildings()
+   */
+  debugSpawnAllBuildings(): void {
+    // ── Flood resources ──
+    const flood: Record<string, number> = {
+      log: 5000, stone: 5000, iron: 2000, firewood: 2000,
+      tool: 500, coat: 200, berries: 1000, venison: 500,
+      fish: 500, wheat: 500, bread: 300, leather: 300,
+    };
+    for (const [res, amt] of Object.entries(flood)) {
+      this.addResource(res, amt);
+    }
+
+    // ── Collect all placeable building types ──
+    // Skip roads/bridges (1×1 infrastructure) and crop fields (flexible size)
+    const skipTypes = new Set(['road', 'stone_road', 'bridge', 'crop_field']);
+
+    const typesToPlace: string[] = [];
+    for (const key of Object.keys(BUILDING_DEFS)) {
+      if (skipTypes.has(key)) continue;
+      typesToPlace.push(key);
+    }
+
+    // ── Find a placement origin near the camera center ──
+    const bounds = this.camera.getVisibleBounds();
+    const camCX = Math.floor((bounds.startX + bounds.endX) / 2);
+    const camCY = Math.floor((bounds.startY + bounds.endY) / 2);
+
+    let placed = 0;
+    let cursorX = camCX + 6;
+    let cursorY = camCY - 10;
+    const rowStartX = cursorX;
+    let rowMaxH = 0;
+
+    for (const type of typesToPlace) {
+      const def = BUILDING_DEFS[type];
+      if (!def) continue;
+
+      const w = def.width;
+      const h = def.height;
+
+      // Wrap to next row if we'd go too far right
+      if (cursorX - rowStartX + w > 40) {
+        cursorY += rowMaxH + 2;
+        cursorX = rowStartX;
+        rowMaxH = 0;
+      }
+
+      // Spiral-search for valid placement
+      let px = cursorX;
+      let py = cursorY;
+      let ok = false;
+      for (let r = 0; r < 12 && !ok; r++) {
+        for (let dx = -r; dx <= r && !ok; dx++) {
+          for (let dy = -r; dy <= r && !ok; dy++) {
+            if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+            const cx = cursorX + dx;
+            const cy = cursorY + dy;
+            if (this.tileMap.isAreaBuildable(cx, cy, w, h)) {
+              px = cx;
+              py = cy;
+              ok = true;
+            }
+          }
+        }
+      }
+      if (!ok) {
+        cursorX += w + 2;
+        if (h > rowMaxH) rowMaxH = h;
+        continue;
+      }
+
+      const id = this.world.createEntity();
+
+      this.world.addComponent(id, 'position', {
+        tileX: px, tileY: py,
+        pixelX: px * TILE_SIZE, pixelY: py * TILE_SIZE,
+      });
+
+      this.world.addComponent(id, 'building', {
+        type: def.type,
+        name: def.name,
+        category: def.category,
+        completed: true,
+        constructionProgress: 1,
+        constructionWork: def.constructionWork,
+        width: w,
+        height: h,
+        maxWorkers: def.maxWorkers,
+        workRadius: def.workRadius,
+        assignedWorkers: [],
+        costLog: 0,
+        costStone: 0,
+        costIron: 0,
+        materialsDelivered: true,
+        isStorage: def.isStorage,
+        storageCapacity: def.storageCapacity,
+        residents: def.residents,
+        durability: 100,
+        rotation: 0,
+        doorDef: def.doorDef,
+      });
+
+      this.world.addComponent(id, 'renderable', {
+        sprite: null, layer: 5, animFrame: 0, visible: true,
+      });
+
+      this.world.addComponent(id, 'producer', {
+        timer: 0, active: false, workerCount: 0,
+      });
+
+      if (type === 'wooden_house' || type === 'stone_house') {
+        this.world.addComponent(id, 'house', {
+          residents: [],
+          firewood: 20,
+          warmthLevel: INITIAL_HOUSE_WARMTH,
+          maxResidents: def.residents || 5,
+        });
+      }
+
+      if (def.isStorage || def.storageCapacity) {
+        this.world.addComponent(id, 'storage', {
+          inventory: {} as Record<string, number>,
+          capacity: def.storageCapacity || 5000,
+        });
+      }
+
+      this.tileMap.markOccupied(px, py, w, h, id, def.blocksMovement !== false);
+      this.eventBus.emit('building_completed', { id, name: def.name, tileX: px, tileY: py });
+
+      placed++;
+      cursorX = px + w + 2;
+      if (h > rowMaxH) rowMaxH = h;
+    }
+
+    this.renderSystem.invalidateTerrain();
+    this.uiManager.addNotification(`Debug: placed ${placed} buildings + flooded resources`, '#44ddff');
   }
 }

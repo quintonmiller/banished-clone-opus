@@ -31,18 +31,42 @@ const BUILDING_COLORS: Record<string, string> = {
 
 // Per-type color overrides (takes priority over category colors)
 const BUILDING_TYPE_COLORS: Record<string, string> = {
-  quarry: '#8a7060',
-  mine: '#4a4040',
+  // Tier-1 buildings — unique colors per type
+  wooden_house:    '#b87a3a', // warm wood-brown
+  storage_barn:    '#8a6d3b', // dark storage brown
+  stockpile:       '#7a6d55', // dusty tan
+  gathering_hut:   '#5a9940', // earthy green
+  hunting_cabin:   '#7a6644', // olive wood-brown
+  fishing_dock:    '#4a7a99', // weathered dock blue
+  bakery:          '#c49050', // golden bakery amber
+  chicken_coop:    '#aa9944', // hay gold
+  pasture:         '#6a9a4a', // meadow green
+  forester_lodge:  '#8a6b33', // medium wood-brown
+  wood_cutter:     '#996b3a', // warm medium-brown
+  blacksmith:      '#6a5540', // dark smoky brown
+  tailor:          '#9977aa', // soft purple-mauve
+  dairy:           '#c4aa70', // creamy beige
+  herbalist:       '#44884a', // herbal green
+  market:          '#cc9944', // golden amber
+  school:          '#6688aa', // scholarly blue
+  trading_post:    '#887755', // weathered wood-olive
+  tavern:          '#886644', // warm tavern-brown
+  well:            '#7799aa', // cool stone-blue
+  chapel:          '#8888aa', // lavender-grey
+  town_hall:       '#6a6688', // dignified purple-grey
+  quarry:          '#8a7060', // sandy rock-brown
+  mine:            '#4a4040', // dark tunnel grey
   // Tier-2 upgrades — cooler/richer tones to distinguish from tier-1
-  stone_house:     '#8899bb', // cool blue-grey stone (vs orange-brown wooden house)
-  stone_barn:      '#778899', // slate blue-grey (vs dark brown barn)
-  gathering_lodge: '#3d7a22', // deep forest green (vs mid-green hut)
-  hunting_lodge:   '#4a6633', // dark olive (vs lighter hunting cabin)
-  forestry_hall:   '#7a5522', // deep amber-wood (vs lighter forester lodge)
-  sawmill:         '#7a5a33', // dark wood-brown (vs lighter wood cutter)
-  iron_works:      '#445566', // dark steel blue-grey (vs amber blacksmith)
-  stone_well:      '#5588aa', // stone blue (vs generic services blue)
-  academy:         '#3355cc', // deep blue-indigo (vs medium services blue)
+  stone_house:     '#8899bb', // cool blue-grey stone
+  stone_barn:      '#778899', // slate blue-grey
+  gathering_lodge: '#3d7a22', // deep forest green
+  hunting_lodge:   '#4a6633', // dark olive
+  forestry_hall:   '#7a5522', // deep amber-wood
+  sawmill:         '#7a5a33', // dark wood-brown
+  iron_works:      '#445566', // dark steel blue-grey
+  stone_well:      '#5588aa', // stone blue
+  academy:         '#3355cc', // deep blue-indigo
+  stone_road:      '#b0a898', // light stone
 };
 
 export class RenderSystem {
