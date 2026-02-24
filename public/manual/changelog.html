@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog — Exiled Manual</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="wrap head">
+      <a href="index.html" class="logo">Exiled</a>
+      <span class="subtitle">Game Manual</span>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="buildings.html">Buildings</a>
+        <a href="resources.html">Resources</a>
+        <a href="citizens.html">Citizens</a>
+        <a href="seasons.html">Seasons</a>
+        <a href="mechanics.html">Mechanics</a>
+        <a href="changelog.html">Changelog</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-title">
+      <h1>Changelog</h1>
+      <p>A summary of what changed in each version of Exiled.</p>
+    </div>
+
+    <div class="panel">
+      <h2>v0.5.0 <span style="font-size:0.8rem;color:var(--ink-3);font-weight:400">— Current</span></h2>
+      <ul>
+        <li>Revamped festivals into multi-phase interactive <a href="mechanics.html#festivals">fairs</a> with group activities, traveling visitors, prosperity scoring, and reward choices</li>
+        <li>Added coordinated group activities at fairs: races, group dances, feast circles, tug of war, parades, scavenger hunts</li>
+        <li>Overhauled <a href="mechanics.html#relationships">relationship system</a> with organic score-based progression, partnership, marriage, divorce, and conception mechanics</li>
+        <li>Added leisure system — citizens spend free time with partners and friends</li>
+        <li>Modular architecture refactor for CitizenAI system</li>
+        <li>Unified event notification system with deduplication</li>
+        <li>UI refinements: warm earth-tone palette, improved info panels, speed control z-order fix</li>
+        <li>Various bug fixes: building click selection, frozen worker pathing, construction-site pathing, newborn naming</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>v0.4.0</h2>
+      <ul>
+        <li>Added <a href="mechanics.html#milestones">milestone system</a> with permanent settlement bonuses and <a href="mechanics.html#events">random narrative events</a></li>
+        <li>Added <strong>livestock</strong>: <a href="building.html?id=chicken_coop">chickens</a> and <a href="building.html?id=pasture">cattle</a> with feeding, breeding, production, and winter exposure</li>
+        <li>Added social buildings: <a href="building.html?id=tavern">Tavern</a>, <a href="building.html?id=well">Well</a>, and <a href="building.html?id=chapel">Chapel</a> with happiness auras</li>
+        <li>Added <a href="citizens.html#skills">citizen skill progression</a> with XP, 5 levels, and mastery bonuses</li>
+        <li>Added visible <a href="mechanics.html#production">crop growth stages</a> replacing flat-rate production</li>
+        <li>Added <a href="citizens.html#traits">personality traits</a> (Hardworking, Lazy, Social, etc.) affecting behavior and productivity</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>v0.3.0</h2>
+      <ul>
+        <li>Added <a href="building.html?id=bakery">Bakery</a> building and <a href="resources.html#food">cooking system</a> with cooked meal buffs (warmth, happiness, energy)</li>
+        <li>Added <a href="mechanics.html#festivals">seasonal festivals</a> at the <a href="building.html?id=town_hall">Town Hall</a> with lingering bonus effects</li>
+        <li>Added <a href="building.html?id=town_hall">Town Hall</a> building</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>v0.2.0</h2>
+      <ul>
+        <li>Added <strong>save/load system</strong> (IndexedDB + localStorage)</li>
+        <li>Added <strong>event log</strong> panel for settlement notifications</li>
+        <li>Added <strong>settings panel</strong></li>
+        <li>UI improvements: HiDPI rendering, camera edge-panning removal</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>v0.1.0</h2>
+      <ul>
+        <li>Initial release: ECS architecture, map generation, A* pathfinding</li>
+        <li>Core systems: <a href="seasons.html">seasons</a>, <a href="citizens.html#daily-life">citizen AI</a>, <a href="mechanics.html#construction">construction</a>, <a href="mechanics.html#production">production</a>, <a href="citizens.html#needs">needs</a>, <a href="mechanics.html#storage">storage</a>, <a href="citizens.html#families">population</a>, <a href="mechanics.html#trade">trade</a>, <a href="mechanics.html#disease">disease</a>, <a href="seasons.html#weather">weather</a></li>
+        <li>20+ <a href="buildings.html">building types</a> across housing, storage, food, resource, services, and infrastructure categories</li>
+        <li>Full <a href="seasons.html#day-night">day/night cycle</a> with seasonal daylight variation</li>
+        <li>Particle effects: smoke, snow, leaves</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer>
+    v0.5.0 — Made by <a href="https://quinton.dev" target="_blank" rel="noopener">Quinton Miller</a>
+  </footer>
+
+  <script type="module">
+    import { ManualData } from './data.js';
+    ManualData.initNav();
+  </script>
+</body>
+</html>

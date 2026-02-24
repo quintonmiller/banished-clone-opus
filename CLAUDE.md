@@ -142,6 +142,13 @@ src/
 - Milestone bonuses accessed via `game.milestoneSystem.getBonus('bonusType')` — returns accumulated value from all achieved milestones
 - Personality traits stored as `string[]` on citizen component; skill XP stored on worker component as `worker.skills[skillType] = { xp, level }`
 
+## Versioning & Changelog
+- **`GAME_VERSION`** in `src/version.ts` — display version shown in the Start Screen, Pause Menu, and manual footer
+- **`SAVE_VERSION`** in `src/save/SaveTypes.ts` — save format version; only bump when the save data structure changes
+- When bumping `GAME_VERSION`: update `src/version.ts`, `package.json` version field, manual footer in all `public/manual/*.html` files, and add an entry to `public/manual/changelog.html`
+- When bumping `SAVE_VERSION`: only needed when adding/removing/restructuring fields in `SaveData`
+- Always add a changelog entry for new game versions
+
 ## Keyboard Shortcuts
 - **Space** — Pause/unpause
 - **1-5** — Speed (0x, 1x, 2x, 5x, 10x)

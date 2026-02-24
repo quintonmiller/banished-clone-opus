@@ -1,4 +1,5 @@
 import type { SaveManager } from '../save/SaveManager';
+import { GAME_VERSION } from '../version';
 
 interface Button {
   label: string;
@@ -140,6 +141,11 @@ export class StartScreen {
     this.ctx.fillStyle = '#96866a';
     this.ctx.font = 'italic 17px Georgia, "Times New Roman", serif';
     this.ctx.fillText('A Settlement Survival Game', cx, cy);
+
+    cy += 26;
+    this.ctx.fillStyle = '#504030';
+    this.ctx.font = '13px "Courier New", Courier, monospace';
+    this.ctx.fillText(`v${GAME_VERSION}`, cx, cy);
 
     // Buttons
     const btnW = 280;

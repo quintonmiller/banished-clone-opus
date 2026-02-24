@@ -1,3 +1,5 @@
+import { GAME_VERSION } from '../version';
+
 interface MenuButton {
   label: string;
   x: number;
@@ -90,6 +92,13 @@ export class PauseMenu {
     for (let i = 0; i < this.buttons.length; i++) {
       this.drawButton(ctx, this.buttons[i], i === this.hoveredButton);
     }
+
+    // Version text at bottom of panel
+    ctx.fillStyle = '#504030';
+    ctx.font = '12px "Courier New", Courier, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`v${GAME_VERSION}`, w / 2, panelY + panelH - 16);
 
     ctx.restore();
   }
